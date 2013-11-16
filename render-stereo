@@ -25,6 +25,7 @@
 
 stereo_offset=0.1
 render_percentage=
+crossed=
 for ((;;)); do
 	if [ "${1:0:2}" != "--" ]; then
 		break
@@ -33,10 +34,12 @@ for ((;;)); do
 	shift
 	val="${opt#*=}"
 	opt="${opt%%=*}"
-	if [ "$opt" = "percent" ]; then
-		render_percentage="$val"
+	if [ "$opt" = "crossed" ]; then
+		crossed=1
 	elif [ "$opt" = "offset" ]; then
 		stereo_offset="$val"
+	elif [ "$opt" = "percent" ]; then
+		render_percentage="$val"
 	else
 		echo "bad option $opt" 1>&2
 		exit 3
@@ -55,6 +58,7 @@ RENDER_image_name="${blendfile##*/}"
 RENDER_image_name="${RENDER_image_name%.*}"
 export RENDER_image_name
 export RENDER_percentage="$render_percentage"
+export RENDER_crossed="$crossed"
 
 blender -b "$blendfile" -P <(cat <<'EOD'
 import sys
@@ -73,6 +77,7 @@ if render_percentage != "" :
 else :
     render_percentage = None
 #end if
+crossed = os.getenv("RENDER_crossed", "") != ""
 
 left_eye_name = image_basename + " L.png"
 right_eye_name = image_basename + " R.png"
@@ -103,6 +108,9 @@ bpy.ops.render.render \
 
 left_eye = cairo.ImageSurface.create_from_png(left_eye_name)
 right_eye = cairo.ImageSurface.create_from_png(right_eye_name)
+if crossed :
+    left_eye, right_eye = right_eye, left_eye
+#end if
 eye_offset = left_eye.get_width()
 image_height = left_eye.get_height()
 stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, eye_offset * 2, image_height)
