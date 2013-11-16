@@ -87,11 +87,11 @@ active_scene = bpy.context.scene
 active_camera = active_scene.camera
 orig_camera_matrix = active_camera.matrix_local
 
-sys.stdout.write("active camera is “%s”\n" % active_camera.name) # debug
+sys.stdout.write("active scene is “%s”, camera is “%s”\n" % (active_scene.name, active_camera.name))
 if render_percentage != None :
     active_scene.render.resolution_percentage = render_percentage
 #end if
-sys.stdout.write("render resolution is %d%% * (%d, %d)\n" % (active_scene.render.resolution_percentage, active_scene.render.resolution_x, active_scene.render.resolution_y)) # debug
+sys.stdout.write("render resolution is %d%% * (%d, %d)\n" % (active_scene.render.resolution_percentage, active_scene.render.resolution_x, active_scene.render.resolution_y))
 
 active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector((- stereo_offset, 0, 0))) # left eye
 active_scene.render.filepath = left_eye_name
