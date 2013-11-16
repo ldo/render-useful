@@ -27,23 +27,23 @@ stereo_offset=0.1
 render_percentage=
 crossed=
 for ((;;)); do
-	if [ "${1:0:2}" != "--" ]; then
-		break
-	fi
-	opt="${1:2:${#1}}"
-	shift
-	val="${opt#*=}"
-	opt="${opt%%=*}"
-	if [ "$opt" = "crossed" ]; then
-		crossed=1
-	elif [ "$opt" = "offset" ]; then
-		stereo_offset="$val"
-	elif [ "$opt" = "percent" ]; then
-		render_percentage="$val"
-	else
-		echo "bad option $opt" 1>&2
-		exit 3
-	fi
+    if [ "${1:0:2}" != "--" ]; then
+        break
+    fi
+    opt="${1:2:${#1}}"
+    shift
+    val="${opt#*=}"
+    opt="${opt%%=*}"
+    if [ "$opt" = "crossed" ]; then
+        crossed=1
+    elif [ "$opt" = "offset" ]; then
+        stereo_offset="$val"
+    elif [ "$opt" = "percent" ]; then
+        render_percentage="$val"
+    else
+        echo "bad option $opt" 1>&2
+        exit 3
+    fi
 done
 
 if [ $# != 1 ]; then
