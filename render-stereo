@@ -35,7 +35,7 @@ active_camera = active_scene.camera
 orig_camera_matrix = active_camera.matrix_local
 
 sys.stdout.write("active camera is “%s”\n" % active_camera.name) # debug
-sys.stdout.write("render resolution is (%d, %d)\n" % (active_scene.render.resolution_x, active_scene.render.resolution_y)) # debug
+sys.stdout.write("render resolution is %d%% * (%d, %d)\n" % (active_scene.render.resolution_percentage, active_scene.render.resolution_x, active_scene.render.resolution_y)) # debug
 
 active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector((- $stereo_offset, 0, 0))) # left eye
 active_scene.render.filepath = left_eye_name
@@ -67,5 +67,6 @@ compose.rectangle(eye_offset, 0, eye_offset, image_height)
 compose.fill()
 stereo.flush()
 stereo.write_to_png(stereo_name)
+sys.stdout.write("Saved %s\n" % stereo_name)
 EOD
 )
