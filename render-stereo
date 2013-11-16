@@ -1,0 +1,71 @@
+#!/bin/bash
+#+
+# This script invokes Blender to render the specified .blend file.
+# It renders two images, offsetting the camera along its local X axis,
+# to produce a stereo pair. Besides Blender, it also needs the
+# Cairo graphics library.
+#
+# Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+#-
+
+if [ $# != 1 ]; then
+    echo $'Usage:\n\t'"$0" $'<blendfile>\n' 1>&2
+    exit 3
+fi
+blendfile="$1"
+stereo_offset=0.1
+image_name="${blendfile##*/}"
+image_name="${image_name%.*}"
+echo "image_name = $image_name"
+
+blender -b "$blendfile" -P <(cat <<EOD
+import sys
+import bpy
+from mathutils import \
+    Matrix, \
+    Vector
+import cairo
+
+left_eye_name = "$image_name" + " L.png"
+right_eye_name = "$image_name" + " R.png"
+stereo_name = "$image_name" + " Stereo.png"
+
+active_scene = bpy.context.scene
+active_camera = active_scene.camera
+orig_camera_matrix = active_camera.matrix_local
+
+sys.stdout.write("active camera is “%s”\n" % active_camera.name) # debug
+sys.stdout.write("render resolution is (%d, %d)\n" % (active_scene.render.resolution_x, active_scene.render.resolution_y)) # debug
+
+active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector((- $stereo_offset, 0, 0))) # left eye
+active_scene.render.filepath = left_eye_name
+bpy.ops.render.render \
+  (
+    write_still = True
+  )
+active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector(($stereo_offset, 0, 0))) # right eye
+active_scene.render.filepath = right_eye_name
+bpy.ops.render.render \
+  (
+    write_still = True
+  )
+
+left_eye = cairo.ImageSurface.create_from_png(left_eye_name)
+right_eye = cairo.ImageSurface.create_from_png(right_eye_name)
+eye_offset = left_eye.get_width()
+image_height = left_eye.get_height()
+stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, eye_offset * 2, image_height)
+compose = cairo.Context(stereo)
+compose.set_operator(cairo.OPERATOR_SOURCE)
+compose.set_source_rgba(0, 0, 0, 0)
+compose.paint()
+compose.set_source_surface(right_eye, 0, 0)
+compose.rectangle(0, 0, eye_offset, image_height)
+compose.fill()
+compose.set_source_surface(left_eye, eye_offset, 0)
+compose.rectangle(eye_offset, 0, eye_offset, image_height)
+compose.fill()
+stereo.flush()
+stereo.write_to_png(stereo_name)
+EOD
+)
