@@ -13,22 +13,28 @@ if [ $# != 1 ]; then
     exit 3
 fi
 blendfile="$1"
-stereo_offset=0.1
-image_name="${blendfile##*/}"
-image_name="${image_name%.*}"
-echo "image_name = $image_name"
+# pass parameters to Python script in environment variables to avoid
+# problems with special characters
+export RENDER_stereo_offset=0.1
+RENDER_image_name="${blendfile##*/}"
+RENDER_image_name="${RENDER_image_name%.*}"
+export RENDER_image_name
 
-blender -b "$blendfile" -P <(cat <<EOD
+blender -b "$blendfile" -P <(cat <<'EOD'
 import sys
+import os
 import bpy
 from mathutils import \
     Matrix, \
     Vector
 import cairo
 
-left_eye_name = "$image_name" + " L.png"
-right_eye_name = "$image_name" + " R.png"
-stereo_name = "$image_name" + " Stereo.png"
+image_basename = os.getenv("RENDER_image_name")
+stereo_offset = float(os.getenv("RENDER_stereo_offset"))
+
+left_eye_name = image_basename + " L.png"
+right_eye_name = image_basename + " R.png"
+stereo_name = image_basename + " Stereo.png"
 
 active_scene = bpy.context.scene
 active_camera = active_scene.camera
@@ -37,13 +43,13 @@ orig_camera_matrix = active_camera.matrix_local
 sys.stdout.write("active camera is “%s”\n" % active_camera.name) # debug
 sys.stdout.write("render resolution is %d%% * (%d, %d)\n" % (active_scene.render.resolution_percentage, active_scene.render.resolution_x, active_scene.render.resolution_y)) # debug
 
-active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector((- $stereo_offset, 0, 0))) # left eye
+active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector((- stereo_offset, 0, 0))) # left eye
 active_scene.render.filepath = left_eye_name
 bpy.ops.render.render \
   (
     write_still = True
   )
-active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector(($stereo_offset, 0, 0))) # right eye
+active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector((stereo_offset, 0, 0))) # right eye
 active_scene.render.filepath = right_eye_name
 bpy.ops.render.render \
   (
