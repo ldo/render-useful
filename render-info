@@ -38,9 +38,13 @@ other_marker = "*"
 for scene in bpy.data.scenes :
     sys.stdout.write \
       (
-            "%s scene “%s”\n"
+            "%s scene “%s”, engine “%s”\n"
         %
-            ((other_marker, active_marker)[scene.name == bpy.context.scene.name], scene.name)
+            (
+                (other_marker, active_marker)[scene.name == bpy.context.scene.name],
+                scene.name,
+                scene.render.engine,
+            )
       )
     sys.stdout.write \
       (
