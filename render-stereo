@@ -5,15 +5,20 @@
 # and combines them to produce a stereo pair. Besides Blender, it also
 # needs the Cairo graphics library. Invoke it as follows:
 #
-#     render-stereo [--offset=offset] [--percent=percent] blendfile
+#     render-stereo [options...] blendfile
 #
-# where
-#    * offset is the distance in BU to offset the camera to each side
-#      from its initial position to generate the image for each eye;
-#      if omitted, defaults to 0.1.
-#    * percent is the percentage of the render size at which to generate
-#      the images; if omitted, defaults to the last-saved setting in the
-#      blendfile.
+# where the options are
+#    --blender=blender
+#          specifies the path to the Blender executable. Defaults to
+#          searching for the name “blender” in your PATH.
+#    --offset=offset
+#          specifies the distance in BU to offset the camera to each
+#          side from its initial position to generate the image for
+#          each eye; if omitted, defaults to 0.1.
+#    --percent=percent
+#          specifies the percentage of the render size at which to
+#          generate the images; if omitted, defaults to the last-saved
+#          setting in the blendfile.
 #
 # The output will be 3 PNG files; if blendfile is “basename.blend”, then
 # the output files will be named “basename L.png”, “basename R.png”
@@ -23,6 +28,7 @@
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
 
+blender=blender
 stereo_offset=0.1
 render_percentage=
 crossed=
@@ -34,7 +40,9 @@ for ((;;)); do
     shift
     val="${opt#*=}"
     opt="${opt%%=*}"
-    if [ "$opt" = "crossed" ]; then
+    if [ "$opt" = "blender" ]; then
+        blender="$val"
+    elif [ "$opt" = "crossed" ]; then
         crossed=1
     elif [ "$opt" = "offset" ]; then
         stereo_offset="$val"
@@ -60,7 +68,7 @@ export RENDER_image_name
 export RENDER_percentage="$render_percentage"
 export RENDER_crossed="$crossed"
 
-blender -b "$blendfile" -P <(cat <<'EOD'
+"$blender" -b "$blendfile" -P <(cat <<'EOD'
 import sys
 import os
 import bpy
