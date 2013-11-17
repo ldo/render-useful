@@ -22,6 +22,10 @@
 #          specifies the percentage of the render size at which to
 #          generate the images; if omitted, defaults to the last-saved
 #          setting in the blendfile.
+#    --samples=samples
+#          the number of samples per pixel (Cycles renderer only).
+#          If omitted, defaults to the last-saved setting in the
+#          blendfile.
 #    --scene=scene
 #          specifies the scene to render. If omitted, defaults to
 #          the active scene.
@@ -38,6 +42,7 @@
 blender=blender
 camera=
 scene=
+samples=
 stereo_offset=0.1
 render_percentage=
 crossed=
@@ -59,6 +64,8 @@ for ((;;)); do
         stereo_offset="$val"
     elif [ "$opt" = "percent" ]; then
         render_percentage="$val"
+    elif [ "$opt" = "samples" ]; then
+        samples="$val"
     elif [ "$opt" = "scene" ]; then
         scene="$val"
     else
@@ -80,6 +87,7 @@ RENDER_image_name="${RENDER_image_name%.*}"
 export RENDER_image_name
 export RENDER_scene="$scene"
 export RENDER_camera="$camera"
+export RENDER_samples="$samples"
 export RENDER_percentage="$render_percentage"
 export RENDER_crossed="$crossed"
 
@@ -100,6 +108,12 @@ if render_percentage != "" :
 else :
     render_percentage = None
 #end if
+render_samples = os.getenv("RENDER_samples", "")
+if render_samples != "" :
+    render_samples = int(render_samples)
+else :
+    render_samples = None
+#end if
 scene_name = os.getenv("RENDER_scene", "")
 if scene_name == "" :
     scene_name = None
@@ -119,6 +133,15 @@ if scene_name != None :
 #end if
 if camera_name != None :
     bpy.context.scene.camera = bpy.data.objects[camera_name]
+#end if
+if (
+        render_samples != None
+    and
+        hasattr(bpy.context.scene, "cycles")
+    and
+        bpy.context.scene.render.engine == "CYCLES"
+    ) :
+     bpy.context.scene.cycles.samples = render_samples
 #end if
 active_scene = bpy.context.scene
 active_camera = active_scene.camera
