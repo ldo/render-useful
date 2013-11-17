@@ -1,0 +1,67 @@
+#!/bin/bash
+#+
+# This script displays information about a specified .blend file,
+# namely the scenes, render settings and cameras.
+#
+# Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+#-
+
+blender=blender
+for ((;;)); do
+    if [ "${1:0:2}" != "--" ]; then
+        break
+    fi
+    opt="${1:2:${#1}}"
+    shift
+    val="${opt#*=}"
+    opt="${opt%%=*}"
+    if [ "$opt" = "blender" ]; then
+        blender="$val"
+    else
+        echo "bad option $opt" 1>&2
+        exit 3
+    fi
+done
+
+if [ $# != 1 ]; then
+    echo $'Usage:\n\t'"$0" $'<blendfile>\n' 1>&2
+    exit 3
+fi
+blendfile="$1"
+
+"$blender" -b "$blendfile" -P <(cat <<'EOD'
+import sys
+import bpy
+
+active_marker = "→"
+other_marker = "*"
+for scene in bpy.data.scenes :
+    sys.stdout.write \
+      (
+            "%s scene “%s”\n"
+        %
+            ((other_marker, active_marker)[scene.name == bpy.context.scene.name], scene.name)
+      )
+    sys.stdout.write \
+      (
+            "    render resolution = %d%% × (%d, %d)\n"
+        %
+            (scene.render.resolution_percentage, scene.render.resolution_x, scene.render.resolution_y)
+      )
+    nr_cameras = 0
+    for object in scene.objects :
+        if object.type == "CAMERA" :
+            nr_cameras += 1
+            sys.stdout.write \
+              (
+                    "    %s camera “%s”\n"
+                %
+                    ((other_marker, active_marker)[object.name == scene.camera.name], object.name)
+              )
+        #end if
+    #end for
+    sys.stdout.write("    Cameras: %d\n" % nr_cameras)
+#end for
+sys.stdout.write("Scenes: %d\n" % len(bpy.data.scenes))
+EOD
+)
