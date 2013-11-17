@@ -20,10 +20,11 @@
 #          generate the images; if omitted, defaults to the last-saved
 #          setting in the blendfile.
 #
-# The output will be 3 PNG files; if blendfile is “basename.blend”, then
-# the output files will be named “basename L.png”, “basename R.png”
-# (being the separate left- and right-eye images respectively) and
-# “basename Stereo.png” (being the first two images combined side-by-side).
+# The output will be 3 PNG files in the current directory; if
+# blendfile is “basename.blend”, then the output files will be named
+# “basename L.png”, “basename R.png” (being the separate left- and
+# right-eye images respectively) and “basename Stereo.png” (being the
+# first two images combined side-by-side).
 #
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
