@@ -3,7 +3,7 @@
 # This script invokes Blender to render the specified .blend file.
 # It renders two images, offsetting the camera along its local X axis,
 # and combines them to produce a stereo pair. Besides Blender, it also
-# needs the Cairo graphics library. Invoke it as follows:
+# needs the Python-Cairo graphics library. Invoke it as follows:
 #
 #     render-stereo [options...] blendfile
 #
