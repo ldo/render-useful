@@ -48,6 +48,10 @@ for scene in bpy.data.scenes :
       )
     sys.stdout.write \
       (
+        "    frames = %d to %d by %d\n" % (scene.frame_start, scene.frame_end, scene.frame_step)
+      )
+    sys.stdout.write \
+      (
             "    render resolution = %d%% × (%d, %d)\n"
         %
             (scene.render.resolution_percentage, scene.render.resolution_x, scene.render.resolution_y)
