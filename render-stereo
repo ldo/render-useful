@@ -58,6 +58,7 @@ camera=
 scene=
 samples=
 stereo_offset=0.1
+digits=4
 render_percentage=
 out=
 animation=
@@ -82,6 +83,8 @@ for ((;;)); do
         camera="$val"
     elif [ "$opt" = "crossed" ]; then
         crossed=1
+    elif [ "$opt" = "digits" ]; then
+        digits="$val"
     elif [ "$opt" = "frame" -o "$opt" = "frames" ]; then
         frame_spec="$val"
     elif [ "$opt" = "offset" ]; then
@@ -143,6 +146,7 @@ export RENDER_camera="$camera"
 export RENDER_samples="$samples"
 export RENDER_percentage="$render_percentage"
 export RENDER_crossed="$crossed"
+export RENDER_digits="$digits"
 
 "$blender" -b "$blendfile" -P "$script_pipe" &
 # can't seem to put “&” on end of cmd containing a here-doc, so feed script separately via a pipe
@@ -250,6 +254,7 @@ image_pipename = os.getenv("RENDER_pipe")
 render_out = os.getenv("RENDER_out")
 animation = os.getenv("RENDER_animation", "") != ""
 crossed = os.getenv("RENDER_crossed", "") != ""
+digits = int(os.getenv("RENDER_digits"))
 
 frame_start, frame_end, frame_step = \
     tuple(int(i) for i in open(image_pipename, "rt").read().rstrip().split(":"))
@@ -279,7 +284,7 @@ for frame_nr in range(frame_start, frame_end, frame_step) :
     compose.fill()
     stereo.flush()
     if animation :
-        image_name = os.path.join(render_out, "%04d.png" % frame_nr)
+        image_name = os.path.join(render_out, "%%0%dd.png" % digits % frame_nr)
     else :
         image_name = render_out
     #end if
