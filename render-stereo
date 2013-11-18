@@ -155,7 +155,7 @@ if (
         hasattr(bpy.context.scene, "cycles")
     and
         bpy.context.scene.render.engine == "CYCLES"
-    ) :
+) :
      bpy.context.scene.cycles.samples = render_samples
 #end if
 active_scene = bpy.context.scene
