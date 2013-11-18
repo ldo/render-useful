@@ -1,26 +1,38 @@
 #!/bin/bash
 #+
-# This script invokes Blender to render the specified .blend file.
-# It renders two images, offsetting the camera along its local X axis,
-# and combines them to produce a stereo pair. Besides Blender, it also
-# needs the Python-Cairo graphics library. Invoke it as follows:
+# This script invokes Blender to render the specified .blend file.  It
+# renders two images at a time, offsetting the camera along its local
+# X axis, and combines them to produce a stereo pair. Besides Blender,
+# it also needs the Python-Cairo graphics library. Invoke it as
+# follows:
 #
 #     render-stereo [options...] blendfile
 #
 # where the options are
+#    --animation
+#          specifies that an animation sequence is to be rendered.
+#          If omitted, a single frame is rendered.
 #    --blender=blender
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
 #    --camera=camera
 #          specifies the name of the camera to use. If omitted,
 #          defaults to the active camera for the scene.
+#    --frame=framenr
+#    --frames=[start,end[,step]]
+#          specifies the frame number (if a single frame) or frame
+#          range (if an animation) to be rendered, which can be empty
+#          to default to the saved settings from the blend file.
 #    --offset=offset
 #          specifies the distance in BU to offset the camera to each
 #          side from its initial position to generate the image for
 #          each eye; if omitted, defaults to 0.1.
 #    --out=dest
-#          the name to give the output PNG file. If omitted, defaults
-#          to the basename of the input blend file with “ Stereo.png”
+#          the name to give the output PNG file if rendering a single
+#          frame, or the name of the directory into which to save the
+#          numbered frames for an animation. Must be specified when
+#          rendering an animation. If omitted, defaults to the
+#          basename of the input blend file with “ Stereo.png”
 #          appended, saved in the current directory.
 #    --percent=percent
 #          specifies the percentage of the render size at which to
@@ -48,6 +60,7 @@ samples=
 stereo_offset=0.1
 render_percentage=
 out=
+animation=
 crossed=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
@@ -57,12 +70,20 @@ for ((;;)); do
     shift
     val="${opt#*=}"
     opt="${opt%%=*}"
-    if [ "$opt" = "blender" ]; then
+    if [ "$opt" = "animation" ]; then
+        animation=1
+    elif [ "$opt" = "blender" ]; then
         blender="$val"
+        if [ ! -x "$blender" ]; then
+            echo "$0: no such executable “$blender”" 1>&2
+            exit 3
+        fi
     elif [ "$opt" = "camera" ]; then
         camera="$val"
     elif [ "$opt" = "crossed" ]; then
         crossed=1
+    elif [ "$opt" = "frame" -o "$opt" = "frames" ]; then
+        frame_spec="$val"
     elif [ "$opt" = "offset" ]; then
         stereo_offset="$val"
     elif [ "$opt" = "out" ]; then
@@ -74,13 +95,13 @@ for ((;;)); do
     elif [ "$opt" = "scene" ]; then
         scene="$val"
     else
-        echo "bad option $opt" 1>&2
+        echo "$0: bad option $opt" 1>&2
         exit 3
     fi
 done
 
 if [ $# != 1 ]; then
-    echo $'Usage:\n\t'"$0" $'<blendfile>\n' 1>&2
+    echo "$0"$': Usage:\n\t'"$0" $'<blendfile>\n' 1>&2
     exit 3
 fi
 blendfile="$1"
@@ -94,13 +115,27 @@ mkfifo -m600 "$image_pipe"
 # pass parameters to Python scripts in environment variables to avoid
 # problems with special characters
 export RENDER_stereo_offset="$stereo_offset"
-if [ -n "$out" ]; then
-    RENDER_image_name="$out"
+if [ $animation ]; then
+    if [ -z "$out" ] || [ ! -d "$out" ]; then
+        echo "$0: must specify --out directory for animation frames" 1>&2
+        exit 3
+    fi
+    IFS=',' read -a frame_spec <<<"$frame_spec"
+    export RENDER_frame_start="${frame_spec[0]}"
+    export RENDER_frame_end="${frame_spec[1]}"
+    export RENDER_frame_step="${frame_spec[2]}"
+    echo "frames from $RENDER_frame_start to $RENDER_frame_end via $RENDER_frame_step" # debug
 else
-    RENDER_image_name="${blendfile##*/}"
-    RENDER_image_name="${RENDER_image_name%.*} Stereo.png"
+    export RENDER_frame_start="$frame_spec"
 fi
-export RENDER_image_name
+export RENDER_animation="$animation"
+if [ -n "$out" ]; then
+    RENDER_out="$out"
+else
+    RENDER_out="${blendfile##*/}"
+    RENDER_out="${RENDER_out%%.*} Stereo.png"
+fi
+export RENDER_out
 export RENDER_pipe="$image_pipe"
 export RENDER_tmpdir="$tmpdir"
 export RENDER_scene="$scene"
@@ -111,6 +146,8 @@ export RENDER_crossed="$crossed"
 
 "$blender" -b "$blendfile" -P "$script_pipe" &
 # can't seem to put “&” on end of cmd containing a here-doc, so feed script separately via a pipe
+# fixme: errors in this script seem to hang after Python displays the first line of the
+# traceback.
 cat >"$script_pipe" <<'EOD'
 import sys
 import os
@@ -119,29 +156,33 @@ from mathutils import \
     Matrix, \
     Vector
 
+def get_optional_env(varname, convert = None) :
+    # returns the value of the specified environment variable, converted
+    # by applying the convert function if specified; returns None if
+    # the value of the variable was not specified or empty.
+    val = os.getenv(varname, "")
+    if val != "" :
+        if convert != None :
+            val = convert(val)
+        #end if
+    else :
+        val = None
+    #end if
+    return \
+        val
+#end get_optional_env
+
 image_pipename = os.getenv("RENDER_pipe")
 tmpdirname = os.getenv("RENDER_tmpdir")
 stereo_offset = float(os.getenv("RENDER_stereo_offset"))
-render_percentage = os.getenv("RENDER_percentage", "")
-if render_percentage != "" :
-    render_percentage = int(render_percentage)
-else :
-    render_percentage = None
-#end if
-render_samples = os.getenv("RENDER_samples", "")
-if render_samples != "" :
-    render_samples = int(render_samples)
-else :
-    render_samples = None
-#end if
-scene_name = os.getenv("RENDER_scene", "")
-if scene_name == "" :
-    scene_name = None
-#end if
-camera_name = os.getenv("RENDER_camera", "")
-if camera_name == "" :
-    camera_name = None
-#end if
+render_percentage = get_optional_env("RENDER_percentage", int)
+animation = os.getenv("RENDER_animation", "") != ""
+frame_start = get_optional_env("RENDER_frame_start", int)
+frame_end = get_optional_env("RENDER_frame_end", int)
+frame_step = get_optional_env("RENDER_frame_step", int)
+render_samples = get_optional_env("RENDER_samples", int)
+scene_name = get_optional_env("RENDER_scene")
+camera_name = get_optional_env("RENDER_camera")
 
 if scene_name != None :
     bpy.context.screen.scene = bpy.data.scenes[scene_name]
@@ -162,16 +203,41 @@ active_scene = bpy.context.scene
 active_camera = active_scene.camera
 orig_camera_matrix = active_camera.matrix_local
 
-sys.stdout.write("active scene is “%s”, camera is “%s”\n" % (active_scene.name, active_camera.name))
+if frame_start == None :
+    frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
+#end if
+if animation :
+    if frame_end == None :
+        frame_end = active_scene.frame_end
+    #end if
+    if frame_step == None :
+        frame_step = active_scene.frame_step
+    #end if
+else :
+    frame_end = frame_start
+    frame_step = 1
+#end if
+frame_end += 1 # make it exclusive
 if render_percentage != None :
     active_scene.render.resolution_percentage = render_percentage
 #end if
-sys.stdout.write("render resolution is %d%% * (%d, %d)\n" % (active_scene.render.resolution_percentage, active_scene.render.resolution_x, active_scene.render.resolution_y))
+frame_spec = open(image_pipename, "wt")
+frame_spec.write("%d:%d:%d\n" % (frame_start, frame_end, frame_step))
+frame_spec.flush()
+frame_spec.close()
 
 active_scene.render.filepath = image_pipename
-for sign in (-1, +1) : # left eye, then right eye
-    active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector((sign * stereo_offset, 0, 0)))
-    bpy.ops.render.render(write_still = True)
+for frame_nr in range(frame_start, frame_end, frame_step) :
+    active_scene.frame_set(frame_nr)
+    for sign in (-1, +1) : # left eye, then right eye
+        active_camera.matrix_local = \
+            (
+                orig_camera_matrix
+            *
+                Matrix.Translation(Vector((sign * stereo_offset, 0, 0)))
+            )
+        bpy.ops.render.render(write_still = True)
+    #end for
 #end for
 EOD
 
@@ -181,31 +247,47 @@ import os
 import cairo
 
 image_pipename = os.getenv("RENDER_pipe")
-image_name = os.getenv("RENDER_image_name")
+render_out = os.getenv("RENDER_out")
+animation = os.getenv("RENDER_animation", "") != ""
 crossed = os.getenv("RENDER_crossed", "") != ""
 
-left_eye = cairo.ImageSurface.create_from_png(image_pipename)
-right_eye = cairo.ImageSurface.create_from_png(image_pipename)
-if crossed :
-    left_eye, right_eye = right_eye, left_eye
-#end if
-eye_offset = left_eye.get_width()
-image_height = left_eye.get_height()
-stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, eye_offset * 2, image_height)
-compose = cairo.Context(stereo)
-compose.set_operator(cairo.OPERATOR_SOURCE)
-compose.set_source_rgba(0, 0, 0, 0)
-compose.paint()
-compose.set_source_surface(right_eye, 0, 0)
-compose.rectangle(0, 0, eye_offset, image_height)
-compose.fill()
-compose.set_source_surface(left_eye, eye_offset, 0)
-compose.rectangle(eye_offset, 0, eye_offset, image_height)
-compose.fill()
-stereo.flush()
-stereo.write_to_png(image_name)
-sys.stdout.write("Saved %s\n" % image_name)
+frame_start, frame_end, frame_step = \
+    tuple(int(i) for i in open(image_pipename, "rt").read().rstrip().split(":"))
+# note frame_end is exclusive
+
+eye_offset = None
+for frame_nr in range(frame_start, frame_end, frame_step) :
+    left_eye = cairo.ImageSurface.create_from_png(image_pipename)
+    right_eye = cairo.ImageSurface.create_from_png(image_pipename)
+    if crossed :
+        left_eye, right_eye = right_eye, left_eye
+    #end if
+    if eye_offset == None :
+        eye_offset = left_eye.get_width()
+        image_height = left_eye.get_height()
+    #end if
+    stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, eye_offset * 2, image_height)
+    compose = cairo.Context(stereo)
+    compose.set_operator(cairo.OPERATOR_SOURCE)
+    compose.set_source_rgba(0, 0, 0, 0)
+    compose.paint()
+    compose.set_source_surface(right_eye, 0, 0)
+    compose.rectangle(0, 0, eye_offset, image_height)
+    compose.fill()
+    compose.set_source_surface(left_eye, eye_offset, 0)
+    compose.rectangle(eye_offset, 0, eye_offset, image_height)
+    compose.fill()
+    stereo.flush()
+    if animation :
+        image_name = os.path.join(render_out, "%04d.png" % frame_nr)
+    else :
+        image_name = render_out
+    #end if
+    stereo.write_to_png(image_name)
+    sys.stdout.write("Saved %s\n" % image_name)
+#end for
 EOD
 )
 
 rm -rf "$tmpdir"
+echo # bring back prompt after “Blender quit” line
