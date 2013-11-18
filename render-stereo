@@ -18,6 +18,10 @@
 #          specifies the distance in BU to offset the camera to each
 #          side from its initial position to generate the image for
 #          each eye; if omitted, defaults to 0.1.
+#    --out=dest
+#          the name to give the output PNG file. If omitted, defaults
+#          to the basename of the input blend file with “ Stereo.png”
+#          appended, saved in the current directory.
 #    --percent=percent
 #          specifies the percentage of the render size at which to
 #          generate the images; if omitted, defaults to the last-saved
@@ -30,9 +34,9 @@
 #          specifies the scene to render. If omitted, defaults to
 #          the active scene.
 #
-# The output will be a PNG file in the current directory, containing
-# the two eye images side-by-side; if blendfile is “basename.blend”,
-# then the output file will be named “basename Stereo.png”.
+# The output file will contain the two eye images side-by-side,
+# the image for the right eye on the left and vice versa, for
+# viewing as “cross-eyed” stereo.
 #
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
@@ -43,6 +47,7 @@ scene=
 samples=
 stereo_offset=0.1
 render_percentage=
+out=
 crossed=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
@@ -60,6 +65,8 @@ for ((;;)); do
         crossed=1
     elif [ "$opt" = "offset" ]; then
         stereo_offset="$val"
+    elif [ "$opt" = "out" ]; then
+        out="$val"
     elif [ "$opt" = "percent" ]; then
         render_percentage="$val"
     elif [ "$opt" = "samples" ]; then
@@ -87,8 +94,12 @@ mkfifo -m600 "$image_pipe"
 # pass parameters to Python scripts in environment variables to avoid
 # problems with special characters
 export RENDER_stereo_offset="$stereo_offset"
-RENDER_image_name="${blendfile##*/}"
-RENDER_image_name="${RENDER_image_name%.*}"
+if [ -n "$out" ]; then
+    RENDER_image_name="$out"
+else
+    RENDER_image_name="${blendfile##*/}"
+    RENDER_image_name="${RENDER_image_name%.*} Stereo.png"
+fi
 export RENDER_image_name
 export RENDER_pipe="$image_pipe"
 export RENDER_tmpdir="$tmpdir"
@@ -169,9 +180,8 @@ import os
 import cairo
 
 image_pipename = os.getenv("RENDER_pipe")
-image_basename = os.getenv("RENDER_image_name")
+image_name = os.getenv("RENDER_image_name")
 crossed = os.getenv("RENDER_crossed", "") != ""
-stereo_name = image_basename + " Stereo.png"
 
 left_eye = cairo.ImageSurface.create_from_png(image_pipename)
 right_eye = cairo.ImageSurface.create_from_png(image_pipename)
@@ -192,10 +202,9 @@ compose.set_source_surface(left_eye, eye_offset, 0)
 compose.rectangle(eye_offset, 0, eye_offset, image_height)
 compose.fill()
 stereo.flush()
-stereo.write_to_png(stereo_name)
-sys.stdout.write("Saved %s\n" % stereo_name)
+stereo.write_to_png(image_name)
+sys.stdout.write("Saved %s\n" % image_name)
 EOD
 )
 
 rm -rf "$tmpdir"
-echo # just to leave room after “Blender quit” line
