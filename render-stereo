@@ -109,7 +109,8 @@ export RENDER_samples="$samples"
 export RENDER_percentage="$render_percentage"
 export RENDER_crossed="$crossed"
 
-"$blender" -b "$blendfile" -P "$script_pipe" & # can't seem to put “&” on end of cmd containing a here-doc
+"$blender" -b "$blendfile" -P "$script_pipe" &
+# can't seem to put “&” on end of cmd containing a here-doc, so feed script separately via a pipe
 cat >"$script_pipe" <<'EOD'
 import sys
 import os
