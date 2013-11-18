@@ -30,11 +30,9 @@
 #          specifies the scene to render. If omitted, defaults to
 #          the active scene.
 #
-# The output will be 3 PNG files in the current directory; if
-# blendfile is “basename.blend”, then the output files will be named
-# “basename L.png”, “basename R.png” (being the separate left- and
-# right-eye images respectively) and “basename Stereo.png” (being the
-# first two images combined side-by-side).
+# The output will be a PNG file in the current directory, containing
+# the two eye images side-by-side; if blendfile is “basename.blend”,
+# then the output file will be named “basename Stereo.png”.
 #
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
@@ -79,28 +77,38 @@ if [ $# != 1 ]; then
     exit 3
 fi
 blendfile="$1"
-# pass parameters to Python script in environment variables to avoid
+
+tmpdir="$(mktemp -d)"
+script_pipe="$tmpdir/pipe.py"
+image_pipe="$tmpdir/pipe.png"
+mkfifo -m600 "$script_pipe"
+mkfifo -m600 "$image_pipe"
+
+# pass parameters to Python scripts in environment variables to avoid
 # problems with special characters
 export RENDER_stereo_offset="$stereo_offset"
 RENDER_image_name="${blendfile##*/}"
 RENDER_image_name="${RENDER_image_name%.*}"
 export RENDER_image_name
+export RENDER_pipe="$image_pipe"
+export RENDER_tmpdir="$tmpdir"
 export RENDER_scene="$scene"
 export RENDER_camera="$camera"
 export RENDER_samples="$samples"
 export RENDER_percentage="$render_percentage"
 export RENDER_crossed="$crossed"
 
-"$blender" -b "$blendfile" -P <(cat <<'EOD'
+"$blender" -b "$blendfile" -P "$script_pipe" & # can't seem to put “&” on end of cmd containing a here-doc
+cat >"$script_pipe" <<'EOD'
 import sys
 import os
 import bpy
 from mathutils import \
     Matrix, \
     Vector
-import cairo
 
-image_basename = os.getenv("RENDER_image_name")
+image_pipename = os.getenv("RENDER_pipe")
+tmpdirname = os.getenv("RENDER_tmpdir")
 stereo_offset = float(os.getenv("RENDER_stereo_offset"))
 render_percentage = os.getenv("RENDER_percentage", "")
 if render_percentage != "" :
@@ -122,11 +130,6 @@ camera_name = os.getenv("RENDER_camera", "")
 if camera_name == "" :
     camera_name = None
 #end if
-crossed = os.getenv("RENDER_crossed", "") != ""
-
-left_eye_name = image_basename + " L.png"
-right_eye_name = image_basename + " R.png"
-stereo_name = image_basename + " Stereo.png"
 
 if scene_name != None :
     bpy.context.screen.scene = bpy.data.scenes[scene_name]
@@ -153,21 +156,25 @@ if render_percentage != None :
 #end if
 sys.stdout.write("render resolution is %d%% * (%d, %d)\n" % (active_scene.render.resolution_percentage, active_scene.render.resolution_x, active_scene.render.resolution_y))
 
-active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector((- stereo_offset, 0, 0))) # left eye
-active_scene.render.filepath = left_eye_name
-bpy.ops.render.render \
-  (
-    write_still = True
-  )
-active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector((stereo_offset, 0, 0))) # right eye
-active_scene.render.filepath = right_eye_name
-bpy.ops.render.render \
-  (
-    write_still = True
-  )
+active_scene.render.filepath = image_pipename
+for sign in (-1, +1) : # left eye, then right eye
+    active_camera.matrix_local = orig_camera_matrix * Matrix.Translation(Vector((sign * stereo_offset, 0, 0)))
+    bpy.ops.render.render(write_still = True)
+#end for
+EOD
 
-left_eye = cairo.ImageSurface.create_from_png(left_eye_name)
-right_eye = cairo.ImageSurface.create_from_png(right_eye_name)
+python3 <(cat <<'EOD'
+import sys
+import os
+import cairo
+
+image_pipename = os.getenv("RENDER_pipe")
+image_basename = os.getenv("RENDER_image_name")
+crossed = os.getenv("RENDER_crossed", "") != ""
+stereo_name = image_basename + " Stereo.png"
+
+left_eye = cairo.ImageSurface.create_from_png(image_pipename)
+right_eye = cairo.ImageSurface.create_from_png(image_pipename)
 if crossed :
     left_eye, right_eye = right_eye, left_eye
 #end if
@@ -189,3 +196,6 @@ stereo.write_to_png(stereo_name)
 sys.stdout.write("Saved %s\n" % stereo_name)
 EOD
 )
+
+rm -rf "$tmpdir"
+echo # just to leave room after “Blender quit” line
