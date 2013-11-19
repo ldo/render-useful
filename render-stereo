@@ -205,7 +205,7 @@ if (
 #end if
 active_scene = bpy.context.scene
 active_camera = active_scene.camera
-orig_camera_matrix = active_camera.matrix_local
+orig_camera_matrix = active_camera.matrix_basis
 
 if frame_start == None :
     frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
@@ -235,7 +235,7 @@ active_scene.render.filepath = image_pipename
 for frame_nr in range(frame_start, frame_end, frame_step) :
     active_scene.frame_set(frame_nr)
     for sign in (-1, +1) : # left eye, then right eye
-        active_camera.matrix_local = \
+        active_camera.matrix_basis = \
             (
                 orig_camera_matrix
             *
