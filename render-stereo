@@ -230,6 +230,7 @@ frame_spec.write("%d:%d:%d\n" % (frame_start, frame_end, frame_step))
 frame_spec.flush()
 frame_spec.close()
 
+active_scene.render.image_settings.file_format = "PNG"
 active_scene.render.filepath = image_pipename
 for frame_nr in range(frame_start, frame_end, frame_step) :
     active_scene.frame_set(frame_nr)
