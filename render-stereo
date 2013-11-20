@@ -115,20 +115,7 @@ if [ $# != 1 ]; then
 fi
 blendfile="$1"
 
-tmpdir="$(mktemp -d)"
-script_pipe="$tmpdir/pipe.py"
-# I tried writing the images directly to a pipe, but that occasionally seemed
-# to deadlock, so I now save to files and use pipes only for synchronizing
-# between the scripts
-image_left="$tmpdir/left.png"
-image_right="$tmpdir/right.png"
-down_pipe="$tmpdir/down"
-up_pipe="$tmpdir/up"
-mkfifo "$script_pipe"
-mkfifo "$down_pipe"
-mkfifo "$up_pipe"
-
-# pass parameters to Python scripts in environment variables to avoid
+# pass parameters to Python script in environment variables to avoid
 # problems with special characters
 export RENDER_stereo_offset="$stereo_offset"
 if [ $animation ]; then
@@ -152,10 +139,6 @@ else
     RENDER_out="${RENDER_out%%.*} Stereo.png"
 fi
 export RENDER_out
-export RENDER_left="$image_left"
-export RENDER_right="$image_right"
-export RENDER_down_pipe="$down_pipe"
-export RENDER_up_pipe="$up_pipe"
 export RENDER_scene="$scene"
 export RENDER_camera="$camera"
 export RENDER_samples="$samples"
@@ -165,17 +148,15 @@ export RENDER_height="$render_height"
 export RENDER_crossed="$crossed"
 export RENDER_digits="$digits"
 
-"$blender" -b "$blendfile" -P "$script_pipe" &
-# can't seem to put “&” on end of cmd containing a here-doc, so feed script separately via a pipe
-# fixme: errors in this script seem to hang after Python displays the first line of the
-# traceback.
-cat >"$script_pipe" <<'EOD'
+"$blender" -b "$blendfile" -P <(cat <<'EOD'
 import sys
 import os
+import tempfile
 import bpy
 from mathutils import \
     Matrix, \
     Vector
+import cairo
 
 def get_optional_env(varname, convert = None) :
     # returns the value of the specified environment variable, converted
@@ -193,15 +174,14 @@ def get_optional_env(varname, convert = None) :
         val
 #end get_optional_env
 
-image_leftname = os.getenv("RENDER_left")
-image_rightname = os.getenv("RENDER_right")
-down_pipename = os.getenv("RENDER_down_pipe")
-up_pipename = os.getenv("RENDER_up_pipe")
 stereo_offset = float(os.getenv("RENDER_stereo_offset"))
 render_percentage = get_optional_env("RENDER_percentage", int)
 render_width = get_optional_env("RENDER_width", int)
 render_height = get_optional_env("RENDER_height", int)
 animation = os.getenv("RENDER_animation", "") != ""
+crossed = os.getenv("RENDER_crossed", "") != ""
+digits = int(os.getenv("RENDER_digits"))
+render_out = os.getenv("RENDER_out")
 frame_start = get_optional_env("RENDER_frame_start", int)
 frame_end = get_optional_env("RENDER_frame_end", int)
 frame_step = get_optional_env("RENDER_frame_step", int)
@@ -209,133 +189,97 @@ render_samples = get_optional_env("RENDER_samples", int)
 scene_name = get_optional_env("RENDER_scene")
 camera_name = get_optional_env("RENDER_camera")
 
-if scene_name != None :
-    bpy.context.screen.scene = bpy.data.scenes[scene_name]
-#end if
-if camera_name != None :
-    bpy.context.scene.camera = bpy.data.objects[camera_name]
-#end if
-if (
-        render_samples != None
-    and
-        hasattr(bpy.context.scene, "cycles")
-    and
-        bpy.context.scene.render.engine == "CYCLES"
-) :
-     bpy.context.scene.cycles.samples = render_samples
-#end if
-active_scene = bpy.context.scene
-active_camera = active_scene.camera
-orig_camera_matrix = active_camera.matrix_basis
+with tempfile.TemporaryDirectory() as tempdir :
+    image_leftname = os.path.join(tempdir, "left.png")
+    image_rightname = os.path.join(tempdir, "right.png")
 
-if frame_start == None :
-    frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
-#end if
-if animation :
-    if frame_end == None :
-        frame_end = active_scene.frame_end
+    if scene_name != None :
+        bpy.context.screen.scene = bpy.data.scenes[scene_name]
     #end if
-    if frame_step == None :
-        frame_step = active_scene.frame_step
+    if camera_name != None :
+        bpy.context.scene.camera = bpy.data.objects[camera_name]
     #end if
-else :
-    frame_end = frame_start
-    frame_step = 1
-#end if
-frame_end += 1 # make it exclusive
-if render_percentage != None :
-    active_scene.render.resolution_percentage = render_percentage
-#end if
-if render_width != None :
-    active_scene.render.resolution_x = render_width
-#end if
-if render_height != None :
-    active_scene.render.resolution_y = render_height
-#end if
-down_pipe = open(down_pipename, "wt")
-down_pipe.write("%d:%d:%d\n" % (frame_start, frame_end, frame_step))
-down_pipe.flush()
-up_pipe = open(up_pipename, "rt")
-
-active_scene.render.image_settings.file_format = "PNG"
-for frame_nr in range(frame_start, frame_end, frame_step) :
-    active_scene.frame_set(frame_nr)
-    for sign in (-1, +1) : # left eye, then right eye
-        active_scene.render.filepath = (image_leftname, image_rightname)[sign > 0]
-        active_camera.matrix_basis = \
-            (
-                orig_camera_matrix
-            *
-                Matrix.Translation(Vector((sign * stereo_offset, 0, 0)))
-            )
-        bpy.ops.render.render(write_still = True)
-    #end for
-    down_pipe.write("%d\n" % frame_nr)
-    down_pipe.flush()
-    up_pipe.readline()
-#end for
-down_pipe.close()
-up_pipe.close()
-EOD
-
-python3 <(cat <<'EOD'
-import sys
-import os
-import cairo
-
-image_leftname = os.getenv("RENDER_left")
-image_rightname = os.getenv("RENDER_right")
-down_pipename = os.getenv("RENDER_down_pipe")
-up_pipename = os.getenv("RENDER_up_pipe")
-render_out = os.getenv("RENDER_out")
-animation = os.getenv("RENDER_animation", "") != ""
-crossed = os.getenv("RENDER_crossed", "") != ""
-digits = int(os.getenv("RENDER_digits"))
-
-down_pipe = open(down_pipename, "rt")
-up_pipe = open(up_pipename, "wt")
-
-frame_start, frame_end, frame_step = \
-    tuple(int(i) for i in down_pipe.readline().rstrip().split(":"))
-# note frame_end is exclusive
-
-eye_offset = None
-for frame_nr in range(frame_start, frame_end, frame_step) :
-    left_eye = cairo.ImageSurface.create_from_png(image_leftname)
-    right_eye = cairo.ImageSurface.create_from_png(image_rightname)
-    if crossed :
-        left_eye, right_eye = right_eye, left_eye
+    if (
+            render_samples != None
+        and
+            hasattr(bpy.context.scene, "cycles")
+        and
+            bpy.context.scene.render.engine == "CYCLES"
+    ) :
+         bpy.context.scene.cycles.samples = render_samples
     #end if
-    if eye_offset == None :
-        eye_offset = left_eye.get_width()
-        image_height = left_eye.get_height()
+    active_scene = bpy.context.scene
+    active_camera = active_scene.camera
+    orig_camera_matrix = active_camera.matrix_basis
+
+    if frame_start == None :
+        frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
     #end if
-    stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, eye_offset * 2, image_height)
-    compose = cairo.Context(stereo)
-    compose.set_operator(cairo.OPERATOR_SOURCE)
-    compose.set_source_rgba(0, 0, 0, 0)
-    compose.paint()
-    compose.set_source_surface(right_eye, 0, 0)
-    compose.rectangle(0, 0, eye_offset, image_height)
-    compose.fill()
-    compose.set_source_surface(left_eye, eye_offset, 0)
-    compose.rectangle(eye_offset, 0, eye_offset, image_height)
-    compose.fill()
-    stereo.flush()
     if animation :
-        image_name = os.path.join(render_out, "%%0%dd.png" % digits % frame_nr)
+        if frame_end == None :
+            frame_end = active_scene.frame_end
+        #end if
+        if frame_step == None :
+            frame_step = active_scene.frame_step
+        #end if
     else :
-        image_name = render_out
+        frame_end = frame_start
+        frame_step = 1
     #end if
-    stereo.write_to_png(image_name)
-    sys.stdout.write("Saved %s\n" % image_name)
-    up_pipe.write("%d\n" % frame_nr)
-    up_pipe.flush()
-#end for
-down_pipe.close()
-up_pipe.close()
+    frame_end += 1 # make it exclusive
+    if render_percentage != None :
+        active_scene.render.resolution_percentage = render_percentage
+    #end if
+    if render_width != None :
+        active_scene.render.resolution_x = render_width
+    #end if
+    if render_height != None :
+        active_scene.render.resolution_y = render_height
+    #end if
+
+    active_scene.render.image_settings.file_format = "PNG"
+    eye_offset = None
+    for frame_nr in range(frame_start, frame_end, frame_step) :
+        active_scene.frame_set(frame_nr)
+        for sign in (-1, +1) : # left eye, then right eye
+            active_scene.render.filepath = (image_leftname, image_rightname)[sign > 0]
+            active_camera.matrix_basis = \
+                (
+                    orig_camera_matrix
+                *
+                    Matrix.Translation(Vector((sign * stereo_offset, 0, 0)))
+                )
+            bpy.ops.render.render(write_still = True)
+        #end for
+        left_eye = cairo.ImageSurface.create_from_png(image_leftname)
+        right_eye = cairo.ImageSurface.create_from_png(image_rightname)
+        if crossed :
+            left_eye, right_eye = right_eye, left_eye
+        #end if
+        if eye_offset == None :
+            eye_offset = left_eye.get_width()
+            image_height = left_eye.get_height()
+        #end if
+        stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, eye_offset * 2, image_height)
+        compose = cairo.Context(stereo)
+        compose.set_operator(cairo.OPERATOR_SOURCE)
+        compose.set_source_rgba(0, 0, 0, 0)
+        compose.paint()
+        compose.set_source_surface(right_eye, 0, 0)
+        compose.rectangle(0, 0, eye_offset, image_height)
+        compose.fill()
+        compose.set_source_surface(left_eye, eye_offset, 0)
+        compose.rectangle(eye_offset, 0, eye_offset, image_height)
+        compose.fill()
+        stereo.flush()
+        if animation :
+            image_name = os.path.join(render_out, "%%0%dd.png" % digits % frame_nr)
+        else :
+            image_name = render_out
+        #end if
+        stereo.write_to_png(image_name)
+        sys.stdout.write("Saved %s\n" % image_name)
+    #end for
+#end with
 EOD
 )
-
-rm -rf "$tmpdir"
-echo # bring back prompt after “Blender quit” line
