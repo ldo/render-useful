@@ -104,13 +104,7 @@ for ((;;)); do
         exit 3
     fi
 done
-if
-    ! if [ "${blender/\/}" != "$blender" ]; then
-        test -x "$blender"
-    else
-        test "$(type -p "$blender")" != ""
-    fi
-then
+if [ -z "$(type -p "$blender")" ]; then
     echo "$0: no such executable “$blender”" 1>&2
     exit 3
 fi
