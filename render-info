@@ -22,6 +22,10 @@ for ((;;)); do
         exit 3
     fi
 done
+if [ -z "$(type -p "$blender")" ]; then
+    echo "$0: no such executable “$blender”" 1>&2
+    exit 3
+fi
 
 if [ $# != 1 ]; then
     echo $'Usage:\n\t'"$0" $'<blendfile>\n' 1>&2
