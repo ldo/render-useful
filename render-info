@@ -1,7 +1,16 @@
 #!/bin/bash
 #+
 # This script displays information about a specified .blend file,
-# namely the scenes, render settings and cameras.
+# namely the scenes, render settings and cameras. Invoke it as
+# follows:
+#
+#     render-info [options...] blendfile
+#
+# where the only option is
+#
+#    --blender=blender
+#          specifies the path to the Blender executable. Defaults to
+#          searching for the name “blender” in your PATH.
 #
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
