@@ -148,7 +148,7 @@ export RENDER_height="$render_height"
 export RENDER_crossed="$crossed"
 export RENDER_digits="$digits"
 
-"$blender" -b "$blendfile" -P <(cat <<'EOD'
+exec "$blender" -b "$blendfile" -P <(cat <<'EOD'
 import sys
 import os
 import tempfile

@@ -42,7 +42,7 @@ if [ $# != 1 ]; then
 fi
 blendfile="$1"
 
-"$blender" -b "$blendfile" -P <(cat <<'EOD'
+exec "$blender" -b "$blendfile" -P <(cat <<'EOD'
 import sys
 import bpy
 
