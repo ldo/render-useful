@@ -1,12 +1,14 @@
 #!/bin/bash
 #+
-# This script invokes Blender to render the specified .blend file.  It
-# renders two images at a time, offsetting the camera along its local
-# X axis, and combines them to produce a stereo pair. Besides Blender,
-# it also needs the Python-Cairo graphics library. Invoke it as
-# follows:
+# This script invokes Blender to render the specified .blend file. It
+# allows the specification of various rendering settings directly from
+# the command line, overriding settings from the .blend file. It also
+# has the option for stereoscopic rendering, by doing the render twice,
+# offsetting the camera along its local X axis, and combining the
+# resulting images to produce a stereo pair. Besides Blender, it also
+# needs the Python-Cairo graphics library. Invoke it as follows:
 #
-#     render-stereo [options...] blendfile
+#     render-batch [options...] blendfile
 #
 # where the options are
 #
@@ -22,17 +24,18 @@
 #    --frames=[[start],[end][,step]]
 #          specifies the frame number (if a single frame) or frame
 #          range (if an animation) to be rendered.
-#    --offset=offset
-#          specifies the distance in BU to offset the camera to each
+#    --stereo=offset
+#          specifies that a stereoscopic image is to be rendered.
+#          offset is the distance in BU to offset the camera to each
 #          side from its initial position to generate the image for
-#          each eye; if omitted, defaults to 0.1.
+#          each eye. If omitted, a single image is rendered.
 #    --out=dest
 #          the name to give the output PNG file if rendering a single
 #          frame, or the name of the directory into which to save the
 #          numbered frames for an animation. Must be specified when
 #          rendering an animation. If omitted for a single frame,
 #          defaults to the basename of the input blend file with
-#          “ Stereo.png” appended, saved in the current directory.
+#          “.png” appended, saved in the current directory.
 #    --percent=percent
 #          specifies the percentage of the render size at which to
 #          generate the images.
@@ -46,9 +49,9 @@
 # Unless otherwise specified, omitted options default to the
 # values saved in the blend file.
 #
-# The output file will contain the two eye images side-by-side,
-# the image for the right eye on the left and vice versa, for
-# viewing as “cross-eyed” stereo.
+# For stereoscopic rendering, the output file will contain the
+# two eye images side-by-side, the image for the right eye on
+# the left and vice versa, for viewing as “cross-eyed” stereo.
 #
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
@@ -57,7 +60,7 @@ blender=blender
 camera=
 scene=
 samples=
-stereo_offset=0.1
+stereo_offset=
 digits=4
 render_percentage=
 render_width=
@@ -85,8 +88,6 @@ for ((;;)); do
         digits="$val"
     elif [ "$opt" = "frame" -o "$opt" = "frames" ]; then
         frame_spec="$val"
-    elif [ "$opt" = "offset" ]; then
-        stereo_offset="$val"
     elif [ "$opt" = "out" ]; then
         out="$val"
     elif [ "$opt" = "percent" ]; then
@@ -99,6 +100,8 @@ for ((;;)); do
         samples="$val"
     elif [ "$opt" = "scene" ]; then
         scene="$val"
+    elif [ "$opt" = "stereo" ]; then
+        stereo_offset="$val"
     else
         echo "$0: bad option $opt" 1>&2
         exit 3
@@ -136,7 +139,7 @@ if [ -n "$out" ]; then
     RENDER_out="$out"
 else
     RENDER_out="${blendfile##*/}"
-    RENDER_out="${RENDER_out%%.*} Stereo.png"
+    RENDER_out="${RENDER_out%%.*}.png"
 fi
 export RENDER_out
 export RENDER_scene="$scene"
@@ -174,7 +177,7 @@ def get_optional_env(varname, convert = None) :
         val
 #end get_optional_env
 
-stereo_offset = float(os.getenv("RENDER_stereo_offset"))
+stereo_offset = get_optional_env("RENDER_stereo_offset", float)
 render_percentage = get_optional_env("RENDER_percentage", int)
 render_width = get_optional_env("RENDER_width", int)
 render_height = get_optional_env("RENDER_height", int)
@@ -241,43 +244,48 @@ with tempfile.TemporaryDirectory() as tempdir :
     eye_offset = None
     for frame_nr in range(frame_start, frame_end, frame_step) :
         active_scene.frame_set(frame_nr)
-        for sign in (-1, +1) : # left eye, then right eye
-            active_scene.render.filepath = (image_leftname, image_rightname)[sign > 0]
-            active_camera.matrix_basis = \
-                (
-                    orig_camera_matrix
-                *
-                    Matrix.Translation(Vector((sign * stereo_offset, 0, 0)))
-                )
-            bpy.ops.render.render(write_still = True)
-        #end for
-        left_eye = cairo.ImageSurface.create_from_png(image_leftname)
-        right_eye = cairo.ImageSurface.create_from_png(image_rightname)
-        if crossed :
-            left_eye, right_eye = right_eye, left_eye
-        #end if
-        if eye_offset == None :
-            eye_offset = left_eye.get_width()
-            image_height = left_eye.get_height()
-        #end if
-        stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, eye_offset * 2, image_height)
-        compose = cairo.Context(stereo)
-        compose.set_operator(cairo.OPERATOR_SOURCE)
-        compose.set_source_rgba(0, 0, 0, 0)
-        compose.paint()
-        compose.set_source_surface(right_eye, 0, 0)
-        compose.rectangle(0, 0, eye_offset, image_height)
-        compose.fill()
-        compose.set_source_surface(left_eye, eye_offset, 0)
-        compose.rectangle(eye_offset, 0, eye_offset, image_height)
-        compose.fill()
-        stereo.flush()
         if animation :
             image_name = os.path.join(render_out, "%%0%dd.png" % digits % frame_nr)
         else :
             image_name = render_out
         #end if
-        stereo.write_to_png(image_name)
+        if stereo_offset != None :
+            for sign in (-1, +1) : # left eye, then right eye
+                active_scene.render.filepath = (image_leftname, image_rightname)[sign > 0]
+                active_camera.matrix_basis = \
+                    (
+                        orig_camera_matrix
+                    *
+                        Matrix.Translation(Vector((sign * stereo_offset, 0, 0)))
+                    )
+                bpy.ops.render.render(write_still = True)
+            #end for
+            left_eye = cairo.ImageSurface.create_from_png(image_leftname)
+            right_eye = cairo.ImageSurface.create_from_png(image_rightname)
+            if crossed :
+                left_eye, right_eye = right_eye, left_eye
+            #end if
+            if eye_offset == None :
+                eye_offset = left_eye.get_width()
+                image_height = left_eye.get_height()
+            #end if
+            stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, eye_offset * 2, image_height)
+            compose = cairo.Context(stereo)
+            compose.set_operator(cairo.OPERATOR_SOURCE)
+            compose.set_source_rgba(0, 0, 0, 0)
+            compose.paint()
+            compose.set_source_surface(right_eye, 0, 0)
+            compose.rectangle(0, 0, eye_offset, image_height)
+            compose.fill()
+            compose.set_source_surface(left_eye, eye_offset, 0)
+            compose.rectangle(eye_offset, 0, eye_offset, image_height)
+            compose.fill()
+            stereo.flush()
+            stereo.write_to_png(image_name)
+        else :
+            active_scene.render.filepath = image_name
+            bpy.ops.render.render(write_still = True)
+        #end if
         sys.stdout.write("Saved %s\n" % image_name)
     #end for
 #end with
