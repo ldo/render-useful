@@ -38,7 +38,9 @@
 #          “.png” appended, saved in the current directory.
 #    --percent=percent
 #          specifies the percentage of the render size at which to
-#          generate the images.
+#          generate the images. If omitted, the default is 100 if
+#          --resolution is specified, otherwise the default is
+#          the setting in the .blend file.
 #    --resolution=width:height
 #          specifies the dimensions in pixels of each rendered image.
 #    --samples=samples
@@ -96,6 +98,9 @@ for ((;;)); do
         IFS=':' read -a items <<<"$val"
         render_width="${items[0]}"
         render_height="${items[1]}"
+        if [ -z "$render_percentage" ]; then
+            render_percentage=100
+        fi
     elif [ "$opt" = "samples" ]; then
         samples="$val"
     elif [ "$opt" = "scene" ]; then
