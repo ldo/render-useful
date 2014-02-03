@@ -166,6 +166,32 @@ from mathutils import \
     Vector
 import cairo
 
+#+
+# Useful stuff
+#-
+
+class DummyTempDir :
+    "a replacement for tempfile.TemporaryDirectory for when I\n"
+    "don’t actually need a temp directory."
+
+    def __init__(self) :
+        pass
+    #end __init__
+
+    def __enter__(self) :
+        return "dummy" # got to return something usable as part of a pathname
+    #end __enter__
+
+    def __exit__(self, exception_type, exception_value, traceback) :
+        pass
+    #end __exit__
+
+#end DummyTempDir
+
+#+
+# Mainline
+#-
+
 def get_optional_env(varname, convert = None) :
     # returns the value of the specified environment variable, converted
     # by applying the convert function if specified; returns None if
@@ -197,7 +223,9 @@ render_samples = get_optional_env("RENDER_samples", int)
 scene_name = get_optional_env("RENDER_scene")
 camera_name = get_optional_env("RENDER_camera")
 
-with tempfile.TemporaryDirectory() as tempdir :
+need_tempfile = stereo_offset != None
+
+with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
     image_leftname = os.path.join(tempdir, "left.png")
     image_rightname = os.path.join(tempdir, "right.png")
 
