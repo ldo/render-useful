@@ -20,6 +20,14 @@
 #          searching for the name “blender” in your PATH.
 #    --camera=camera
 #          specifies the name of the camera to use.
+#    --existing=error|overwrite|skip
+#          specifies what to do if an output image file already exists:
+#            error     -- signal an error and abort the render
+#            overwrite -- overwrite the output file
+#            skip      -- skip rendering this frame. If rendering an
+#                         animation, the rendering continues with any
+#                         remaining frames.
+#          If omitted, the default is error.
 #    --frame=framenr
 #    --frames=[[start],[end][,step]]
 #          specifies the frame number (if a single frame) or frame
@@ -68,6 +76,7 @@ render_percentage=
 render_width=
 render_height=
 out=
+existing=error
 animation=
 crossed=
 for ((;;)); do
@@ -88,6 +97,12 @@ for ((;;)); do
         crossed=1
     elif [ "$opt" = "digits" ]; then
         digits="$val"
+    elif [ "$opt" = "existing" ]; then
+        if [ "$val" != "error" -a "$val" != "overwrite" -a "$val" != "skip" ]; then
+            echo "$0: --existing value must be “error”, “overwrite” or “skip”" 1>&2
+            exit 3
+        fi
+        existing="$val"
     elif [ "$opt" = "frame" -o "$opt" = "frames" ]; then
         frame_spec="$val"
     elif [ "$opt" = "out" ]; then
@@ -147,6 +162,7 @@ else
     RENDER_out="${RENDER_out%%.*}.png"
 fi
 export RENDER_out
+export RENDER_existing="$existing"
 export RENDER_scene="$scene"
 export RENDER_camera="$camera"
 export RENDER_samples="$samples"
@@ -216,6 +232,7 @@ animation = os.getenv("RENDER_animation", "") != ""
 crossed = os.getenv("RENDER_crossed", "") != ""
 digits = int(os.getenv("RENDER_digits"))
 render_out = os.getenv("RENDER_out")
+existing_action = os.getenv("RENDER_existing")
 frame_start = get_optional_env("RENDER_frame_start", int)
 frame_end = get_optional_env("RENDER_frame_end", int)
 frame_step = get_optional_env("RENDER_frame_step", int)
@@ -282,44 +299,50 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
         else :
             image_name = render_out
         #end if
-        if stereo_offset != None :
-            for sign in (-1, +1) : # left eye, then right eye
-                active_scene.render.filepath = (image_leftname, image_rightname)[sign > 0]
-                active_camera.matrix_basis = \
-                    (
-                        orig_camera_matrix
-                    *
-                        Matrix.Translation(Vector((sign * stereo_offset, 0, 0)))
-                    )
+        if existing_action == "overwrite" or not os.path.exists(image_name) :
+            if stereo_offset != None :
+                for sign in (-1, +1) : # left eye, then right eye
+                    active_scene.render.filepath = (image_leftname, image_rightname)[sign > 0]
+                    active_camera.matrix_basis = \
+                        (
+                            orig_camera_matrix
+                        *
+                            Matrix.Translation(Vector((sign * stereo_offset, 0, 0)))
+                        )
+                    bpy.ops.render.render(write_still = True)
+                #end for
+                left_eye = cairo.ImageSurface.create_from_png(image_leftname)
+                right_eye = cairo.ImageSurface.create_from_png(image_rightname)
+                if crossed :
+                    left_eye, right_eye = right_eye, left_eye
+                #end if
+                if eye_offset == None :
+                    eye_offset = left_eye.get_width()
+                    image_height = left_eye.get_height()
+                #end if
+                stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, eye_offset * 2, image_height)
+                compose = cairo.Context(stereo)
+                compose.set_operator(cairo.OPERATOR_SOURCE)
+                compose.set_source_rgba(0, 0, 0, 0)
+                compose.paint()
+                compose.set_source_surface(right_eye, 0, 0)
+                compose.rectangle(0, 0, eye_offset, image_height)
+                compose.fill()
+                compose.set_source_surface(left_eye, eye_offset, 0)
+                compose.rectangle(eye_offset, 0, eye_offset, image_height)
+                compose.fill()
+                stereo.flush()
+                stereo.write_to_png(image_name)
+            else :
+                active_scene.render.filepath = image_name
                 bpy.ops.render.render(write_still = True)
-            #end for
-            left_eye = cairo.ImageSurface.create_from_png(image_leftname)
-            right_eye = cairo.ImageSurface.create_from_png(image_rightname)
-            if crossed :
-                left_eye, right_eye = right_eye, left_eye
             #end if
-            if eye_offset == None :
-                eye_offset = left_eye.get_width()
-                image_height = left_eye.get_height()
-            #end if
-            stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, eye_offset * 2, image_height)
-            compose = cairo.Context(stereo)
-            compose.set_operator(cairo.OPERATOR_SOURCE)
-            compose.set_source_rgba(0, 0, 0, 0)
-            compose.paint()
-            compose.set_source_surface(right_eye, 0, 0)
-            compose.rectangle(0, 0, eye_offset, image_height)
-            compose.fill()
-            compose.set_source_surface(left_eye, eye_offset, 0)
-            compose.rectangle(eye_offset, 0, eye_offset, image_height)
-            compose.fill()
-            stereo.flush()
-            stereo.write_to_png(image_name)
+            sys.stdout.write("Saved %s\n" % image_name)
+        elif existing_action == "skip" :
+            sys.stdout.write("Skipped %s\n" % image_name)
         else :
-            active_scene.render.filepath = image_name
-            bpy.ops.render.render(write_still = True)
+            raise RuntimeError("Output image “%s” already exists" % image_name)
         #end if
-        sys.stdout.write("Saved %s\n" % image_name)
     #end for
 #end with
 EOD
