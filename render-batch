@@ -127,7 +127,7 @@ blendfile="$1"
 # problems with special characters
 export RENDER_stereo_offset="$stereo_offset"
 if [ $animation ]; then
-    if [ -z "$out" ] || [ ! -d "$out" ]; then
+    if [ -z "$out" -o ! -d "$out" ]; then
         echo "$0: must specify --out directory for animation frames" 1>&2
         exit 3
     fi
