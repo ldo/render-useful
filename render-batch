@@ -20,6 +20,8 @@
 #          searching for the name “blender” in your PATH.
 #    --camera=camera
 #          specifies the name of the camera to use.
+#    --preexec=script
+#          executes the specified Python code prior to the rendering.
 #    --existing=error|overwrite|skip
 #          specifies what to do if an output image file already exists:
 #            error     -- signal an error and abort the render
@@ -79,6 +81,7 @@ out=
 existing=error
 animation=
 crossed=
+preexec=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
         break
@@ -109,6 +112,8 @@ for ((;;)); do
         out="$val"
     elif [ "$opt" = "percent" ]; then
         render_percentage="$val"
+    elif [ "$opt" = "preexec" ]; then
+        preexec="$val"
     elif [ "$opt" = "resolution" ]; then
         IFS=':' read -a items <<<"$val"
         render_width="${items[0]}"
@@ -169,6 +174,7 @@ export RENDER_samples="$samples"
 export RENDER_percentage="$render_percentage"
 export RENDER_width="$render_width"
 export RENDER_height="$render_height"
+export RENDER_preexec="$preexec"
 export RENDER_crossed="$crossed"
 export RENDER_digits="$digits"
 
@@ -229,6 +235,7 @@ render_percentage = get_optional_env("RENDER_percentage", int)
 render_width = get_optional_env("RENDER_width", int)
 render_height = get_optional_env("RENDER_height", int)
 animation = os.getenv("RENDER_animation", "") != ""
+preexec = get_optional_env("RENDER_preexec")
 crossed = os.getenv("RENDER_crossed", "") != ""
 digits = int(os.getenv("RENDER_digits"))
 render_out = os.getenv("RENDER_out")
@@ -292,6 +299,9 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
 
     active_scene.render.image_settings.file_format = "PNG"
     eye_offset = None
+    if preexec != None :
+        exec(preexec)
+    #end if
     for frame_nr in range(frame_start, frame_end, frame_step) :
         active_scene.frame_set(frame_nr)
         if animation :
