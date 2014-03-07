@@ -230,6 +230,8 @@ def get_optional_env(varname, convert = None) :
         val
 #end get_optional_env
 
+os.wait() # gobble zombie child of shell which was previously in this process slot
+
 stereo_offset = get_optional_env("RENDER_stereo_offset", float)
 render_percentage = get_optional_env("RENDER_percentage", int)
 render_width = get_optional_env("RENDER_width", int)
