@@ -12,7 +12,8 @@
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
 #
-# Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2013-2014 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
 blender=blender
