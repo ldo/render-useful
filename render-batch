@@ -68,6 +68,12 @@
 # Written by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 #-
 
+opterror()
+  {
+    echo "$0: $1" 1>&2
+    exit 3
+  } # opterror
+
 blender=blender
 camera=
 scene=
@@ -102,8 +108,7 @@ for ((;;)); do
         digits="$val"
     elif [ "$opt" = "existing" ]; then
         if [ "$val" != "error" -a "$val" != "overwrite" -a "$val" != "skip" ]; then
-            echo "$0: --existing value must be “error”, “overwrite” or “skip”" 1>&2
-            exit 3
+            opterror "--existing value must be “error”, “overwrite” or “skip”"
         fi
         existing="$val"
     elif [ "$opt" = "frame" -o "$opt" = "frames" ]; then
@@ -128,18 +133,15 @@ for ((;;)); do
     elif [ "$opt" = "stereo" ]; then
         stereo_offset="$val"
     else
-        echo "$0: bad option $opt" 1>&2
-        exit 3
+        opterror "bad option $opt"
     fi
 done
 if [ -z "$(type -p "$blender")" ]; then
-    echo "$0: no such executable “$blender”" 1>&2
-    exit 3
+    opterror "no such executable “$blender”"
 fi
 
 if [ $# != 1 ]; then
-    echo "$0"$': Usage:\n\t'"$0" $'<blendfile>\n' 1>&2
-    exit 3
+    opterror $'Usage:\n\t'"$0 "$'<blendfile>'
 fi
 blendfile="$1"
 
@@ -148,8 +150,7 @@ blendfile="$1"
 export RENDER_stereo_offset="$stereo_offset"
 if [ $animation ]; then
     if [ -z "$out" -o ! -d "$out" ]; then
-        echo "$0: must specify --out directory for animation frames" 1>&2
-        exit 3
+        opterror "must specify --out directory for animation frames"
     fi
     IFS=',' read -a frame_spec <<<"$frame_spec"
     export RENDER_frame_start="${frame_spec[0]}"
@@ -193,7 +194,7 @@ import cairo
 #-
 
 class DummyTempDir :
-    "a replacement for tempfile.TemporaryDirectory for when I\n"
+    "a replacement for tempfile.TemporaryDirectory for when I\n" \
     "don’t actually need a temp directory."
 
     def __init__(self) :
