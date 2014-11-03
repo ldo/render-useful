@@ -274,7 +274,7 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
     #end if
     active_scene = bpy.context.scene
     active_camera = active_scene.camera
-    orig_camera_matrix = active_camera.matrix_basis
+    orig_camera_matrix = active_camera.matrix_basis.copy()
 
     if frame_start == None :
         frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
