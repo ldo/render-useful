@@ -19,7 +19,9 @@
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
 #    --camera=camera
-#          specifies the name of the camera to use.
+#          specifies the name of the camera to use. May be specified
+#          more than once, to render images from multiple cameras
+#          side by side.
 #    --preexec=script
 #          executes the specified Python code prior to the rendering.
 #    --existing=error|overwrite|skip
@@ -76,7 +78,7 @@ opterror()
   } # opterror
 
 blender=blender
-camera=
+nr_cameras=0
 scene=
 samples=
 stereo_offset=
@@ -102,7 +104,8 @@ for ((;;)); do
     elif [ "$opt" = "blender" ]; then
         blender="$val"
     elif [ "$opt" = "camera" ]; then
-        camera="$val"
+        nr_cameras=$((nr_cameras + 1))
+        export RENDER_camera_${nr_cameras}="$val"
     elif [ "$opt" = "crossed" ]; then
         crossed=1
     elif [ "$opt" = "digits" ]; then
@@ -146,6 +149,10 @@ if [ $# != 1 ]; then
 fi
 blendfile="$1"
 
+if [ -n "$stereo_offset" -a $nr_cameras -ne 0 ]; then
+    opterror "cannot specify --stereo with more than one --camera"
+fi
+
 # pass parameters to Python script in environment variables to avoid
 # problems with special characters
 export RENDER_stereo_offset="$stereo_offset"
@@ -171,7 +178,6 @@ fi
 export RENDER_out
 export RENDER_existing="$existing"
 export RENDER_scene="$scene"
-export RENDER_camera="$camera"
 export RENDER_samples="$samples"
 export RENDER_percentage="$render_percentage"
 export RENDER_width="$render_width"
@@ -249,19 +255,34 @@ frame_end = get_optional_env("RENDER_frame_end", int)
 frame_step = get_optional_env("RENDER_frame_step", int)
 render_samples = get_optional_env("RENDER_samples", int)
 scene_name = get_optional_env("RENDER_scene")
-camera_name = get_optional_env("RENDER_camera")
+camera_names = []
+i = 0
+while True :
+    i += 1
+    camera_name = get_optional_env("RENDER_camera_%d" % i)
+    if camera_name == None :
+        break
+    camera_names.append(camera_name)
+#end while
 
 need_tempfile = stereo_offset != None
 
 with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
-    image_leftname = os.path.join(tempdir, "left.png")
-    image_rightname = os.path.join(tempdir, "right.png")
+    image_names = None
+    if len(camera_names) > 1 :
+        image_names = tuple("camera_%d" % (i + 1) for i in range(len(camera_names)))
+    elif stereo_offset != None :
+        image_names = ("left", "right")
+    #end if
+    if image_names != None :
+        image_names = tuple(os.path.join(tempdir, name) + ".png" for name in image_names)
+    #end if
 
     if scene_name != None :
         bpy.context.screen.scene = bpy.data.scenes[scene_name]
     #end if
-    if camera_name != None :
-        bpy.context.scene.camera = bpy.data.objects[camera_name]
+    if len(camera_names) == 1 :
+        bpy.context.scene.camera = bpy.data.objects[camera_names[0]]
     #end if
     if (
             render_samples != None
@@ -302,7 +323,7 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
     #end if
 
     active_scene.render.image_settings.file_format = "PNG"
-    eye_offset = None
+    compose_offset = None
     if preexec != None :
         exec(preexec)
     #end if
@@ -314,9 +335,37 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
             image_name = render_out
         #end if
         if existing_action == "overwrite" or not os.path.exists(image_name) :
-            if stereo_offset != None :
+            if len(camera_names) > 1 :
+                for i in range(len(camera_names)) :
+                    bpy.context.scene.camera = bpy.data.objects[camera_names[i]]
+                    active_scene.render.filepath = image_names[i]
+                    bpy.ops.render.render(write_still = True)
+                #end for
+                for i in range(len(image_names)) :
+                    image = cairo.ImageSurface.create_from_png(image_names[i])
+                    if i == 0 :
+                        compose_offset = image.get_width()
+                        image_height = image.get_height()
+                        concat = cairo.ImageSurface \
+                          (
+                            cairo.FORMAT_RGB24,
+                            compose_offset * len(image_names),
+                            image_height
+                          )
+                        compose = cairo.Context(concat)
+                        compose.set_operator(cairo.OPERATOR_SOURCE)
+                        compose.set_source_rgba(0, 0, 0, 0)
+                        compose.paint()
+                    #end if
+                    compose.set_source_surface(image, compose_offset * i, 0)
+                    compose.rectangle(compose_offset * i, 0, compose_offset, image_height)
+                    compose.fill()
+                #end for
+                concat.flush()
+                concat.write_to_png(image_name)
+            elif stereo_offset != None :
                 for sign in (-1, +1) : # left eye, then right eye
-                    active_scene.render.filepath = (image_leftname, image_rightname)[sign > 0]
+                    active_scene.render.filepath = image_names[sign > 0]
                     active_camera.matrix_basis = \
                         (
                             orig_camera_matrix
@@ -325,25 +374,25 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                         )
                     bpy.ops.render.render(write_still = True)
                 #end for
-                left_eye = cairo.ImageSurface.create_from_png(image_leftname)
-                right_eye = cairo.ImageSurface.create_from_png(image_rightname)
+                left_eye = cairo.ImageSurface.create_from_png(image_names[0])
+                right_eye = cairo.ImageSurface.create_from_png(image_names[1])
                 if crossed :
                     left_eye, right_eye = right_eye, left_eye
                 #end if
-                if eye_offset == None :
-                    eye_offset = left_eye.get_width()
+                if compose_offset == None :
+                    compose_offset = left_eye.get_width()
                     image_height = left_eye.get_height()
                 #end if
-                stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, eye_offset * 2, image_height)
+                stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, compose_offset * 2, image_height)
                 compose = cairo.Context(stereo)
                 compose.set_operator(cairo.OPERATOR_SOURCE)
                 compose.set_source_rgba(0, 0, 0, 0)
                 compose.paint()
                 compose.set_source_surface(right_eye, 0, 0)
-                compose.rectangle(0, 0, eye_offset, image_height)
+                compose.rectangle(0, 0, compose_offset, image_height)
                 compose.fill()
-                compose.set_source_surface(left_eye, eye_offset, 0)
-                compose.rectangle(eye_offset, 0, eye_offset, image_height)
+                compose.set_source_surface(left_eye, compose_offset, 0)
+                compose.rectangle(compose_offset, 0, compose_offset, image_height)
                 compose.fill()
                 stereo.flush()
                 stereo.write_to_png(image_name)
