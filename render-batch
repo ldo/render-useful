@@ -152,6 +152,9 @@ blendfile="$1"
 if [ -n "$stereo_offset" -a $nr_cameras -ne 0 ]; then
     opterror "cannot specify --stereo with more than one --camera"
 fi
+if [ $nr_cameras -ne 0 ]; then
+    unset RENDER_camera_$((nr_cameras + 1)) # just in case
+fi
 
 # pass parameters to Python script in environment variables to avoid
 # problems with special characters
