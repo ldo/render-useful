@@ -67,7 +67,7 @@
 # two eye images side-by-side, the image for the right eye on
 # the left and vice versa, for viewing as “cross-eyed” stereo.
 #
-# Copyright 2013-2014 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2013-2015 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -192,6 +192,7 @@ export RENDER_digits="$digits"
 exec "$blender" -b "$blendfile" -P <(cat <<'EOD'
 import sys
 import os
+import time
 import tempfile
 import bpy
 from mathutils import \
@@ -202,6 +203,54 @@ import cairo
 #+
 # Useful stuff
 #-
+
+units = \
+	( # sequence of quadruples, first element is multiplier to apply to
+	  # previous quadruple, or nr of seconds for first quadruple, second
+      # element is abbreviated unit name, third element is singular unit
+      # name, fourth element is plural unit name.
+		(1, "s", "second", "seconds"),
+		(60, "m", "minute", "minutes"),
+		(60, "h", "hour", "hours"),
+		(24, "d", "day", "days"),
+		(7, "wk", "week", "weeks"),
+	)
+
+def format_elapsed(interval, long_form = False, seconds_places = 0) :
+    "returns an accurate indication of the specified interval in seconds." \
+    " long_form indicates whether to display the units in long form or short form," \
+    " while seconds_places indicates the number of decimal places to use for showing" \
+    " the seconds."
+    unitindex = 0
+    result = ""
+    while True :
+        if unitindex == len(units) :
+            break
+        unit = units[unitindex]
+        if unitindex + 1 < len(units) :
+            factor = units[unitindex + 1][0]
+            place = interval % factor
+        else :
+            factor = None
+            place = interval
+        #end if
+        if unitindex == 0 :
+            format = "%%.%df" % seconds_places
+        else :
+            format = "%d"
+        #end if
+        place = format % place + (unit[1], " " + unit[2:4][place != 1])[long_form]
+        result = place + ("", (" ", (", ", " and " )[unitindex == 1])[long_form])[unitindex > 0] + result
+        if factor == None :
+            break
+        interval //= factor
+        if interval == 0 :
+            break
+        unitindex += 1
+    #end while
+    return \
+        result
+#end format_elapsed
 
 class DummyTempDir :
     "a replacement for tempfile.TemporaryDirectory for when I\n" \
@@ -330,6 +379,8 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
     if preexec != None :
         exec(preexec)
     #end if
+    start_time = time.time()
+    frames_done = 0
     for frame_nr in range(frame_start, frame_end, frame_step) :
         active_scene.frame_set(frame_nr)
         if animation :
@@ -403,13 +454,20 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                 active_scene.render.filepath = image_name
                 bpy.ops.render.render(write_still = True)
             #end if
-            sys.stdout.write("Saved %s\n" % image_name)
+            frames_done += 1
         elif existing_action == "skip" :
             sys.stdout.write("Skipped %s\n" % image_name)
         else :
             raise RuntimeError("Output image “%s” already exists" % image_name)
         #end if
     #end for
+    now = time.time()
+    sys.stdout.write \
+      (
+            "Rendered %d %s in %s\n"
+        %
+            (frames_done, ("frame", "frames")[frames_done != 1], format_elapsed(now - start_time))
+      )
 #end with
 EOD
 )
