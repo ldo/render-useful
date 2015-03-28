@@ -332,7 +332,7 @@ while True :
 #end while
 arrange = get_optional_env("RENDER_arrange")
 
-need_tempfile = stereo_offset != None
+need_tempfile = len(camera_names) > 1 or stereo_offset != None
 
 with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
     image_names = None
