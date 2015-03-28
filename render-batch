@@ -149,7 +149,7 @@ if [ $# != 1 ]; then
 fi
 blendfile="$1"
 
-if [ -n "$stereo_offset" -a $nr_cameras -ne 0 ]; then
+if [ -n "$stereo_offset" -a $nr_cameras -gt 1 ]; then
     opterror "cannot specify --stereo with more than one --camera"
 fi
 if [ $nr_cameras -ne 0 ]; then
