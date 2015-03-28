@@ -6,7 +6,8 @@
 # has the option for stereoscopic rendering, by doing the render twice,
 # offsetting the camera along its local X axis, and combining the
 # resulting images to produce a stereo pair. Besides Blender, it also
-# needs the Python-Cairo graphics library. Invoke it as follows:
+# needs the Qahirah wrapper <https://github.com/ldo/qahirah> for the
+# Cairo graphics library. Invoke it as follows:
 #
 #     render-batch [options...] blendfile
 #
@@ -15,13 +16,16 @@
 #    --animation
 #          specifies that an animation sequence is to be rendered.
 #          If omitted, a single frame is rendered.
+#    --arrange=[across]|down
+#          specifies how the images are to be arranged, if multiple
+#          cameras are specified: across (the default) or down.
 #    --blender=blender
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
 #    --camera=camera
 #          specifies the name of the camera to use. May be specified
 #          more than once, to render images from multiple cameras
-#          side by side.
+#          across or down (depending on --arrange).
 #    --preexec=script
 #          executes the specified Python code prior to the rendering.
 #    --existing=error|overwrite|skip
@@ -79,6 +83,7 @@ opterror()
 
 blender=blender
 nr_cameras=0
+arrange=across
 scene=
 samples=
 stereo_offset=
@@ -101,6 +106,11 @@ for ((;;)); do
     opt="${opt%%=*}"
     if [ "$opt" = "animation" ]; then
         animation=1
+    elif [ "$opt" = "arrange" ]; then
+        if [ "$val" != "across" -a "$val" != "down" ]; then
+            opterror "--arrange value must be “across” or “down”"
+        fi
+        arrange="$val"
     elif [ "$opt" = "blender" ]; then
         blender="$val"
     elif [ "$opt" = "camera" ]; then
@@ -179,6 +189,7 @@ else
     RENDER_out="${RENDER_out%%.*}.png"
 fi
 export RENDER_out
+export RENDER_arrange="$arrange"
 export RENDER_existing="$existing"
 export RENDER_scene="$scene"
 export RENDER_samples="$samples"
@@ -195,10 +206,13 @@ import os
 import time
 import tempfile
 import bpy
-from mathutils import \
-    Matrix, \
+import mathutils
+import qahirah as qah
+from qahirah import \
+    CAIRO, \
+    Colour, \
+    Rect, \
     Vector
-import cairo
 
 #+
 # Useful stuff
@@ -316,6 +330,7 @@ while True :
         break
     camera_names.append(camera_name)
 #end while
+arrange = get_optional_env("RENDER_arrange")
 
 need_tempfile = stereo_offset != None
 
@@ -396,23 +411,32 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                     bpy.ops.render.render(write_still = True)
                 #end for
                 for i in range(len(image_names)) :
-                    image = cairo.ImageSurface.create_from_png(image_names[i])
+                    image = qah.ImageSurface.create_from_png(image_names[i])
                     if i == 0 :
-                        compose_offset = image.get_width()
-                        image_height = image.get_height()
-                        concat = cairo.ImageSurface \
+                        image_dimensions = image.dimensions
+                        compose_step = Vector \
                           (
-                            cairo.FORMAT_RGB24,
-                            compose_offset * len(image_names),
-                            image_height
+                            (0, 1)[arrange == "across"],
+                            (0, 1)[arrange == "down"]
                           )
-                        compose = cairo.Context(concat)
-                        compose.set_operator(cairo.OPERATOR_SOURCE)
-                        compose.set_source_rgba(0, 0, 0, 0)
-                        compose.paint()
+                        concat = qah.ImageSurface.create \
+                          (
+                            format = CAIRO.FORMAT_RGB24,
+                            dimensions =
+                                    image_dimensions
+                                *
+                                    (compose_step * (len(image_names) - 1) + Vector(1, 1))
+                          )
+                        compose = \
+                            (qah.Context.create(concat)
+                                .set_operator(CAIRO.OPERATOR_SOURCE)
+                                .set_source_colour(Colour.grey(0, 0))
+                                .paint()
+                            )
                     #end if
-                    compose.set_source_surface(image, compose_offset * i, 0)
-                    compose.rectangle(compose_offset * i, 0, compose_offset, image_height)
+                    compose_pos = image_dimensions * compose_step * i
+                    compose.set_source_surface(image, compose_pos)
+                    compose.rectangle(Rect.from_dimensions(image_dimensions) + compose_pos)
                     compose.fill()
                 #end for
                 concat.flush()
@@ -424,30 +448,35 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                         (
                             orig_camera_matrix
                         *
-                            Matrix.Translation(Vector((sign * stereo_offset, 0, 0)))
+                            mathutils.Matrix.Translation(mathutils.Vector((sign * stereo_offset, 0, 0)))
                         )
                     bpy.ops.render.render(write_still = True)
                 #end for
-                left_eye = cairo.ImageSurface.create_from_png(image_names[0])
-                right_eye = cairo.ImageSurface.create_from_png(image_names[1])
+                left_eye = qah.ImageSurface.create_from_png(image_names[0])
+                right_eye = qah.ImageSurface.create_from_png(image_names[1])
                 if crossed :
                     left_eye, right_eye = right_eye, left_eye
                 #end if
                 if compose_offset == None :
-                    compose_offset = left_eye.get_width()
-                    image_height = left_eye.get_height()
+                    compose_offset = left_eye.width
+                    image_height = left_eye.height
                 #end if
-                stereo = cairo.ImageSurface(cairo.FORMAT_RGB24, compose_offset * 2, image_height)
-                compose = cairo.Context(stereo)
-                compose.set_operator(cairo.OPERATOR_SOURCE)
-                compose.set_source_rgba(0, 0, 0, 0)
-                compose.paint()
-                compose.set_source_surface(right_eye, 0, 0)
-                compose.rectangle(0, 0, compose_offset, image_height)
-                compose.fill()
-                compose.set_source_surface(left_eye, compose_offset, 0)
-                compose.rectangle(compose_offset, 0, compose_offset, image_height)
-                compose.fill()
+                stereo = qah.ImageSurface.create \
+                  (
+                    format = CAIRO.FORMAT_RGB24,
+                    dimensions = (compose_offset * 2, image_height)
+                  )
+                (qah.Context.create(stereo)
+                    .set_operator(CAIRO.OPERATOR_SOURCE)
+                    .set_source_colour(Colour.grey(0, 0))
+                    .paint()
+                    .set_source_surface(right_eye, (0, 0))
+                    .rectangle(Rect(0, 0, compose_offset, image_height))
+                    .fill()
+                    .set_source_surface(left_eye, (compose_offset, 0))
+                    .rectangle(Rect(compose_offset, 0, compose_offset, image_height))
+                    .fill()
+                )
                 stereo.flush()
                 stereo.write_to_png(image_name)
             else :
