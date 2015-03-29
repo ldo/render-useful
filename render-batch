@@ -16,9 +16,11 @@
 #    --animation
 #          specifies that an animation sequence is to be rendered.
 #          If omitted, a single frame is rendered.
-#    --arrange=[across]|down
+#    --arrange=[across]|down[:n]
 #          specifies how the images are to be arranged, if multiple
-#          cameras are specified: across (the default) or down.
+#          cameras are specified: across (the default) or down. The
+#          optional n specifies how many images are to fit in one
+#          row (if across) or column (if down).
 #    --blender=blender
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
@@ -83,7 +85,7 @@ opterror()
 
 blender=blender
 nr_cameras=0
-arrange=across
+arrange=
 scene=
 samples=
 stereo_offset=
@@ -107,8 +109,13 @@ for ((;;)); do
     if [ "$opt" = "animation" ]; then
         animation=1
     elif [ "$opt" = "arrange" ]; then
-        if [ "$val" != "across" -a "$val" != "down" ]; then
-            opterror "--arrange value must be “across” or “down”"
+        val1="${val%%:*}"
+        val2="${val#*:}"
+        if [ "$val1" != "across" -a "$val1" != "down" ]; then
+            opterror "--arrange type must be “across” or “down”"
+        fi
+        if [[ "$val2" = *[^0-9]* ]]; then
+            opterror "--arrange value must be integer"
         fi
         arrange="$val"
     elif [ "$opt" = "blender" ]; then
@@ -331,6 +338,16 @@ while True :
     camera_names.append(camera_name)
 #end while
 arrange = get_optional_env("RENDER_arrange")
+arrange_limit = None
+if arrange != None :
+    arrange = arrange.split(":")
+    if len(arrange) > 1 :
+        arrange, arrange_limit = arrange
+        arrange_limit = int(arrange_limit)
+    else :
+        arrange = arrange[0]
+    #end if
+#end if
 
 need_tempfile = len(camera_names) > 1 or stereo_offset != None
 
@@ -419,13 +436,24 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                             (0, 1)[arrange == "across"],
                             (0, 1)[arrange == "down"]
                           )
+                        if arrange_limit != None and arrange_limit < len(image_names) :
+                            compose_step_2 = Vector(compose_step.y, compose_step.x)
+                            composite_steps = \
+                                (
+                                    compose_step * arrange_limit
+                                +
+                                        compose_step_2
+                                    *
+                                        ((len(image_names) + arrange_limit - 1) // arrange_limit)
+                                )
+                        else :
+                            compose_step_2 = None
+                            composite_steps = compose_step * (len(image_names) - 1)
+                        #end if
                         concat = qah.ImageSurface.create \
                           (
                             format = CAIRO.FORMAT_RGB24,
-                            dimensions =
-                                    image_dimensions
-                                *
-                                    (compose_step * (len(image_names) - 1) + Vector(1, 1))
+                            dimensions = image_dimensions * (Vector(1, 1) + composite_steps)
                           )
                         compose = \
                             (qah.Context.create(concat)
@@ -434,7 +462,20 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                                 .paint()
                             )
                     #end if
-                    compose_pos = image_dimensions * compose_step * i
+                    if compose_step_2 != None :
+                        compose_pos = \
+                            (
+                                image_dimensions
+                            *
+                                (
+                                    compose_step * (i % arrange_limit)
+                                +
+                                    compose_step_2 * (i // arrange_limit)
+                                )
+                            )
+                    else :
+                        compose_pos = image_dimensions * compose_step * i
+                    #end if
                     compose.set_source_surface(image, compose_pos)
                     compose.rectangle(Rect.from_dimensions(image_dimensions) + compose_pos)
                     compose.fill()
