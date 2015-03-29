@@ -110,7 +110,11 @@ for ((;;)); do
         animation=1
     elif [ "$opt" = "arrange" ]; then
         val1="${val%%:*}"
-        val2="${val#*:}"
+        if [ "$val1" != "$val" ]; then
+            val2="${val#*:}"
+        else
+            val2=""
+        fi
         if [ "$val1" != "across" -a "$val1" != "down" ]; then
             opterror "--arrange type must be “across” or “down”"
         fi
@@ -448,12 +452,12 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                                 )
                         else :
                             compose_step_2 = None
-                            composite_steps = compose_step * (len(image_names) - 1)
+                            composite_steps = Vector(1, 1) + compose_step * (len(image_names) - 1)
                         #end if
                         concat = qah.ImageSurface.create \
                           (
                             format = CAIRO.FORMAT_RGB24,
-                            dimensions = image_dimensions * (Vector(1, 1) + composite_steps)
+                            dimensions = image_dimensions * composite_steps
                           )
                         compose = \
                             (qah.Context.create(concat)
