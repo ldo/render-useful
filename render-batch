@@ -61,6 +61,9 @@
 #          the setting in the .blend file.
 #    --resolution=width:height
 #          specifies the dimensions in pixels of each rendered image.
+#    --rotate=angle
+#          rotates the images by the specified angle in
+#          degrees (which must be a whole multiple of 90).
 #    --samples=samples
 #          the number of samples per pixel (Cycles renderer only).
 #    --scene=scene
@@ -93,6 +96,7 @@ digits=4
 render_percentage=
 render_width=
 render_height=
+rotate=
 out=
 existing=error
 animation=
@@ -151,6 +155,11 @@ for ((;;)); do
         if [ -z "$render_percentage" ]; then
             render_percentage=100
         fi
+    elif [ "$opt" = "rotate" ]; then
+        if [ $(($val % 90)) != 0 ]; then
+            opterror "--rotate value must be multiple of 90"
+        fi
+        rotate=$(($val / 90))
     elif [ "$opt" = "samples" ]; then
         samples="$val"
     elif [ "$opt" = "scene" ]; then
@@ -207,6 +216,7 @@ export RENDER_samples="$samples"
 export RENDER_percentage="$render_percentage"
 export RENDER_width="$render_width"
 export RENDER_height="$render_height"
+export RENDER_rotate="$rotate"
 export RENDER_preexec="$preexec"
 export RENDER_crossed="$crossed"
 export RENDER_digits="$digits"
@@ -224,6 +234,8 @@ from qahirah import \
     Colour, \
     Rect, \
     Vector
+
+os.wait() # gobble zombie child of shell which was previously in this process slot
 
 #+
 # Useful stuff
@@ -315,12 +327,55 @@ def get_optional_env(varname, convert = None) :
         val
 #end get_optional_env
 
-os.wait() # gobble zombie child of shell which was previously in this process slot
+def get_image_from_png(filename) :
+    # loads the contents of a PNG file as an ImageSurface, applying any
+    # appropriate rotation.
+    image = qah.ImageSurface.create_from_png(filename)
+    if rotate != 0 :
+        image_format = image.format
+        src_dimensions = image.dimensions
+        if rotate & 1 != 0 :
+            dst_dimensions = Vector(src_dimensions.y, src_dimensions.x)
+            rotate_point = Vector(src_dimensions.x, src_dimensions.x)
+        else :
+            dst_dimensions = src_dimensions
+            rotate_point = src_dimensions
+        #end if
+        rotate_point = \
+            Vector \
+              (
+                x = (src_dimensions.y, src_dimensions.x, src_dimensions.x)[rotate - 1],
+                y = (src_dimensions.y, src_dimensions.y, src_dimensions.x)[rotate - 1],
+              )
+        src = \
+            (qah.Pattern.create_for_surface(image)
+                .set_matrix(qah.Matrix.rotate(- rotate / 4 * qah.circle, rotate_point / 2))
+            )
+        image = qah.ImageSurface.create \
+          (
+            format = image_format,
+            dimensions = dst_dimensions
+          )
+        (qah.Context.create(image)
+            .set_source(src)
+            .paint()
+        )
+        image.flush()
+    #end if
+    return \
+        image
+#end get_image_from_png
 
 stereo_offset = get_optional_env("RENDER_stereo_offset", float)
 render_percentage = get_optional_env("RENDER_percentage", int)
 render_width = get_optional_env("RENDER_width", int)
 render_height = get_optional_env("RENDER_height", int)
+rotate = get_optional_env("RENDER_rotate", int)
+if rotate != None :
+    rotate %= 4
+else :
+    rotate = 0
+#end if
 animation = os.getenv("RENDER_animation", "") != ""
 preexec = get_optional_env("RENDER_preexec")
 crossed = os.getenv("RENDER_crossed", "") != ""
@@ -353,17 +408,19 @@ if arrange != None :
     #end if
 #end if
 
-need_tempfile = len(camera_names) > 1 or stereo_offset != None
+need_tempfile = len(camera_names) > 1 or stereo_offset != None or rotate != 0
 
 with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
-    image_names = None
+    temp_image_names = None
     if len(camera_names) > 1 :
-        image_names = tuple("camera_%d" % (i + 1) for i in range(len(camera_names)))
+        temp_image_names = tuple("camera_%d" % (i + 1) for i in range(len(camera_names)))
     elif stereo_offset != None :
-        image_names = ("left", "right")
+        temp_image_names = ("left", "right")
+    elif rotate != 0 :
+        temp_image_names = ("unrotated",)
     #end if
-    if image_names != None :
-        image_names = tuple(os.path.join(tempdir, name) + ".png" for name in image_names)
+    if temp_image_names != None :
+        temp_image_names = tuple(os.path.join(tempdir, name) + ".png" for name in temp_image_names)
     #end if
 
     if scene_name != None :
@@ -420,19 +477,19 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
     for frame_nr in range(frame_start, frame_end, frame_step) :
         active_scene.frame_set(frame_nr)
         if animation :
-            image_name = os.path.join(render_out, "%%0%dd.png" % digits % frame_nr)
+            out_image_name = os.path.join(render_out, "%%0%dd.png" % digits % frame_nr)
         else :
-            image_name = render_out
+            out_image_name = render_out
         #end if
-        if existing_action == "overwrite" or not os.path.exists(image_name) :
+        if existing_action == "overwrite" or not os.path.exists(out_image_name) :
             if len(camera_names) > 1 :
                 for i in range(len(camera_names)) :
                     bpy.context.scene.camera = bpy.data.objects[camera_names[i]]
-                    active_scene.render.filepath = image_names[i]
+                    active_scene.render.filepath = temp_image_names[i]
                     bpy.ops.render.render(write_still = True)
                 #end for
-                for i in range(len(image_names)) :
-                    image = qah.ImageSurface.create_from_png(image_names[i])
+                for i in range(len(temp_image_names)) :
+                    image = get_image_from_png(temp_image_names[i])
                     if i == 0 :
                         image_dimensions = image.dimensions
                         compose_step = Vector \
@@ -440,7 +497,7 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                             (0, 1)[arrange == "across"],
                             (0, 1)[arrange == "down"]
                           )
-                        if arrange_limit != None and arrange_limit < len(image_names) :
+                        if arrange_limit != None and arrange_limit < len(temp_image_names) :
                             compose_step_2 = Vector(compose_step.y, compose_step.x)
                             composite_steps = \
                                 (
@@ -448,11 +505,11 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                                 +
                                         compose_step_2
                                     *
-                                        ((len(image_names) + arrange_limit - 1) // arrange_limit)
+                                        ((len(temp_image_names) + arrange_limit - 1) // arrange_limit)
                                 )
                         else :
                             compose_step_2 = None
-                            composite_steps = Vector(1, 1) + compose_step * (len(image_names) - 1)
+                            composite_steps = Vector(1, 1) + compose_step * (len(temp_image_names) - 1)
                         #end if
                         concat = qah.ImageSurface.create \
                           (
@@ -485,10 +542,10 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                     compose.fill()
                 #end for
                 concat.flush()
-                concat.write_to_png(image_name)
+                concat.write_to_png(out_image_name)
             elif stereo_offset != None :
                 for sign in (-1, +1) : # left eye, then right eye
-                    active_scene.render.filepath = image_names[sign > 0]
+                    active_scene.render.filepath = temp_image_names[sign > 0]
                     active_camera.matrix_basis = \
                         (
                             orig_camera_matrix
@@ -497,8 +554,8 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                         )
                     bpy.ops.render.render(write_still = True)
                 #end for
-                left_eye = qah.ImageSurface.create_from_png(image_names[0])
-                right_eye = qah.ImageSurface.create_from_png(image_names[1])
+                left_eye = get_image_from_png(temp_image_names[0])
+                right_eye = get_image_from_png(temp_image_names[1])
                 if crossed :
                     left_eye, right_eye = right_eye, left_eye
                 #end if
@@ -523,16 +580,20 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
                     .fill()
                 )
                 stereo.flush()
-                stereo.write_to_png(image_name)
+                stereo.write_to_png(out_image_name)
+            elif rotate != 0 :
+                active_scene.render.filepath = temp_image_names[0]
+                bpy.ops.render.render(write_still = True)
+                get_image_from_png(temp_image_names[0]).write_to_png(out_image_name)
             else :
-                active_scene.render.filepath = image_name
+                active_scene.render.filepath = out_image_name
                 bpy.ops.render.render(write_still = True)
             #end if
             frames_done += 1
         elif existing_action == "skip" :
-            sys.stdout.write("Skipped %s\n" % image_name)
+            sys.stdout.write("Skipped %s\n" % out_image_name)
         else :
-            raise RuntimeError("Output image “%s” already exists" % image_name)
+            raise RuntimeError("Output image “%s” already exists" % out_image_name)
         #end if
     #end for
     now = time.time()
