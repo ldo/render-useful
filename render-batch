@@ -336,10 +336,8 @@ def get_image_from_png(filename) :
         src_dimensions = image.dimensions
         if rotate & 1 != 0 :
             dst_dimensions = Vector(src_dimensions.y, src_dimensions.x)
-            rotate_point = Vector(src_dimensions.x, src_dimensions.x)
         else :
             dst_dimensions = src_dimensions
-            rotate_point = src_dimensions
         #end if
         rotate_point = \
             Vector \
