@@ -173,7 +173,6 @@ done
 if [ -z "$(type -p "$blender")" ]; then
     opterror "no such executable “$blender”"
 fi
-
 if [ $# != 1 ]; then
     opterror $'Usage:\n\t'"$0 "$'<blendfile>'
 fi
