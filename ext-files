@@ -42,7 +42,7 @@ if [ $# != 1 ]; then
 fi
 blendfile="$1"
 
-exec "$blender" 5>&1 1>&2 -b "$blendfile" -P <(cat <<'EOD'
+exec "$blender" 5>&1 1>/dev/null -b "$blendfile" -P <(cat <<'EOD'
 import sys
 import os
 import json
