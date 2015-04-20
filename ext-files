@@ -2,21 +2,26 @@
 #+
 # This script displays information about a specified .blend file,
 # namely external image, library, font and sound files that it
-# depends on, output in JSON format. Invoke it as follows:
+# depends on. Invoke it as follows:
 #
 #     ext-files [options...] blendfile
 #
-# where the only option is
+# where the valid options are
 #
 #    --blender=blender
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
+#    --paths-only
+#          specifies that only the file paths are to be printed,
+#          one to a line. Otherwise more details about the dependencies
+#          are printed in JSON format.
 #
 # Copyright 2015 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
 blender=blender
+paths_only=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
         break
@@ -27,6 +32,8 @@ for ((;;)); do
     opt="${opt%%=*}"
     if [ "$opt" = "blender" ]; then
         blender="$val"
+    elif [ "$opt" = "paths-only" ]; then
+        paths_only=1
     else
         echo "$0: bad option $opt" 1>&2
         exit 3
@@ -41,6 +48,7 @@ if [ $# != 1 ]; then
     exit 3
 fi
 blendfile="$1"
+export RENDER_paths_only="$paths_only"
 
 exec "$blender" 5>&1 1>/dev/null -b "$blendfile" -P <(cat <<'EOD'
 import sys
@@ -52,8 +60,12 @@ out = os.fdopen(5, "w")
   # use a different fd from stdout, only way it seems to avoid
   # output being polluted by Blender’s messages
 
-out.write("{")
-first_cat = True
+paths_only = os.getenv("RENDER_paths_only", "") != ""
+
+if not paths_only :
+    out.write("{")
+    first_cat = True
+#end if
 for \
     category, match, mismatch, extra \
 in \
@@ -64,12 +76,14 @@ in \
         ("sounds", {}, {}, ()),
     ) \
 :
-    if first_cat :
-        first_cat = False
-    else :
-        out.write(",")
+    if not paths_only :
+        if first_cat :
+            first_cat = False
+        else :
+            out.write(",")
+        #end if
+        out.write("\n    %s:\n        [" % json.dumps(category))
     #end if
-    out.write("\n    %s:\n        [" % json.dumps(category))
     first_item = True
     for item in getattr(bpy.data, category) :
         if (
@@ -79,31 +93,39 @@ in \
             and
                 all(getattr(item, k) == match[k] for k in match)
         ) :
-            if first_item :
-                first_item = False
+            if paths_only :
+                out.write(item.filepath + "\n")
             else :
-                out.write(",")
-            #end if
-            out.write("\n            {")
-            first_attr = True
-            for attr in ("name", "filepath") + extra :
-                if first_attr :
-                    first_attr = False
+                if first_item :
+                    first_item = False
                 else :
                     out.write(",")
                 #end if
-                out.write \
-                  (
-                        "\n                %s: %s"
-                    %
-                        (json.dumps(attr), json.dumps(getattr(item, attr)))
-                  )
-            #end for
-            out.write("\n            }")
+                out.write("\n            {")
+                first_attr = True
+                for attr in ("name", "filepath") + extra :
+                    if first_attr :
+                        first_attr = False
+                    else :
+                        out.write(",")
+                    #end if
+                    out.write \
+                      (
+                            "\n                %s: %s"
+                        %
+                            (json.dumps(attr), json.dumps(getattr(item, attr)))
+                      )
+                #end for
+                out.write("\n            }")
+            #end if
         #end if
     #end for
-    out.write("\n        ]")
+    if not paths_only :
+        out.write("\n        ]")
+    #end if
 #end for
-out.write("\n}\n")
+if not paths_only :
+    out.write("\n}\n")
+#end if
 EOD
 )
