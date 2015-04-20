@@ -12,7 +12,7 @@
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
 #
-# Copyright 2013-2014 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2013-2015 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -42,14 +42,19 @@ if [ $# != 1 ]; then
 fi
 blendfile="$1"
 
-exec "$blender" -b "$blendfile" -P <(cat <<'EOD'
+exec "$blender" 5>&1 1>/dev/null -b "$blendfile" -P <(cat <<'EOD'
 import sys
+import os
 import bpy
+
+out = os.fdopen(5, "w")
+  # use a different fd from stdout, only way it seems to avoid
+  # output being polluted by Blender’s messages
 
 active_marker = "→"
 other_marker = "*"
 for scene in bpy.data.scenes :
-    sys.stdout.write \
+    out.write \
       (
             "%s scene “%s”, engine “%s”\n"
         %
@@ -59,11 +64,11 @@ for scene in bpy.data.scenes :
                 scene.render.engine,
             )
       )
-    sys.stdout.write \
+    out.write \
       (
         "    frames = %d to %d by %d\n" % (scene.frame_start, scene.frame_end, scene.frame_step)
       )
-    sys.stdout.write \
+    out.write \
       (
             "    render resolution = %d%% × (%d, %d)\n"
         %
@@ -73,7 +78,7 @@ for scene in bpy.data.scenes :
     for object in scene.objects :
         if object.type == "CAMERA" :
             nr_cameras += 1
-            sys.stdout.write \
+            out.write \
               (
                     "    %s camera “%s”\n"
                 %
@@ -81,8 +86,8 @@ for scene in bpy.data.scenes :
               )
         #end if
     #end for
-    sys.stdout.write("    Cameras: %d\n" % nr_cameras)
+    out.write("    Cameras: %d\n" % nr_cameras)
 #end for
-sys.stdout.write("Scenes: %d\n" % len(bpy.data.scenes))
+out.write("Scenes: %d\n" % len(bpy.data.scenes))
 EOD
 )
