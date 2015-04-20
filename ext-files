@@ -1,8 +1,8 @@
 #!/bin/bash
 #+
 # This script displays information about a specified .blend file,
-# namely external image and font files that it depends on, output
-# in JSON format. Invoke it as follows:
+# namely external image, library, font and sound files that it
+# depends on, output in JSON format. Invoke it as follows:
 #
 #     ext-files [options...] blendfile
 #
@@ -52,68 +52,58 @@ out = os.fdopen(5, "w")
   # use a different fd from stdout, only way it seems to avoid
   # output being polluted by Blender’s messages
 
-out.write \
-  (
-    "{\n"
-    "    \"images\":\n"
-    "      ["
-  )
-first = True
-for image in bpy.data.images :
-    if image.type == "IMAGE" and image.packed_file == None :
-        if first :
-            first = False
-        else :
-            out.write(",")
-        #end if
-        out.write \
-          (
-                "\n        {\n"
-                "            \"name\": %(name)s,\n"
-                "            \"filepath\": %(filepath)s,\n"
-                "            \"filepath_raw\": %(filepath_raw)s\n"
-                "        }"
-            %
-                {
-                    "name" : json.dumps(image.name),
-                    "filepath" : json.dumps(image.filepath),
-                    "filepath_raw" : json.dumps(image.filepath_raw),
-                }
-          )
+out.write("{")
+first_cat = True
+for \
+    category, match, mismatch, extra \
+in \
+    (
+        ("images", {"type" : "IMAGE"}, {}, ("filepath_raw",)),
+        ("libraries", {}, {}, ()),
+        ("fonts", {}, {"filepath" : "<builtin>"}, ()),
+        ("sounds", {}, {}, ()),
+    ) \
+:
+    if first_cat :
+        first_cat = False
+    else :
+        out.write(",")
     #end if
-#end for
-out.write \
-  (
-    "\n      ],\n"
-    "    \"fonts\":\n"
-    "      ["
-  )
-first = True
-for font in bpy.data.fonts :
-    if font.packed_file == None and font.filepath != "<builtin>" :
-        if first :
-            first = False
-        else :
-            out.write(",")
+    out.write("\n    %s:\n        [" % json.dumps(category))
+    first_item = True
+    for item in getattr(bpy.data, category) :
+        if (
+                item.packed_file == None
+            and
+                not any(getattr(item, k) == mismatch[k] for k in mismatch)
+            and
+                all(getattr(item, k) == match[k] for k in match)
+        ) :
+            if first_item :
+                first_item = False
+            else :
+                out.write(",")
+            #end if
+            out.write("\n            {")
+            first_attr = True
+            for attr in ("name", "filepath") + extra :
+                if first_attr :
+                    first_attr = False
+                else :
+                    out.write(",")
+                #end if
+                out.write \
+                  (
+                        "\n                %s: %s"
+                    %
+                        (json.dumps(attr), json.dumps(getattr(item, attr)))
+                  )
+            #end for
+            out.write("\n            }")
         #end if
-        out.write \
-          (
-                "\n        {\n"
-                "            \"name\": %(name)s,\n"
-                "            \"filepath\": %(filepath)s\n"
-                "        }"
-            %
-                {
-                    "name" : json.dumps(font.name),
-                    "filepath" : json.dumps(font.filepath),
-                }
-          )
-    #end if
+    #end for
+    out.write("\n        ]")
 #end for
-out.write \
-  (
-    "\n      ]\n"
-  )
-out.write("}\n")
+out.write("\n}\n")
 EOD
 )
