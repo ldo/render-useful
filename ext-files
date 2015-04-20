@@ -83,8 +83,8 @@ in \
             out.write(",")
         #end if
         out.write("\n    %s:\n        [" % json.dumps(category))
+        first_item = True
     #end if
-    first_item = True
     for item in getattr(bpy.data, category) :
         if (
                 item.packed_file == None
