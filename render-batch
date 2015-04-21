@@ -28,6 +28,12 @@
 #          specifies the name of the camera to use. May be specified
 #          more than once, to render images from multiple cameras
 #          across or down (depending on --arrange).
+#    --digits=digits
+#          for an animation, the number of digits for for formatting
+#          frame numbers to use in names of output frame files. If
+#          omitted, defaults to 4. The generated names will include
+#          leading zeroes as necessary to make up this number of digits,
+#          eg “0001.png”, “0002.png” etc.
 #    --preexec=script
 #          executes the specified Python code prior to the rendering.
 #    --existing=error|overwrite|skip
@@ -42,6 +48,10 @@
 #    --frames=[[start],[end][,step]]
 #          specifies the frame number (if a single frame) or frame
 #          range (if an animation) to be rendered.
+#    --renumber=renumber
+#          for an animation, the starting number to use to generate
+#          names for the output frame files. If omitted, defaults to
+#          the frame start number.
 #    --stereo=offset
 #          specifies that a stereoscopic image is to be rendered.
 #          offset is the distance in BU to offset the camera to each
@@ -93,6 +103,7 @@ scene=
 samples=
 stereo_offset=
 digits=4
+reunumber=
 render_percentage=
 render_width=
 render_height=
@@ -148,6 +159,8 @@ for ((;;)); do
         render_percentage="$val"
     elif [ "$opt" = "preexec" ]; then
         preexec="$val"
+    elif [ "$opt" = "renumber" ]; then
+        renumber="$val"
     elif [ "$opt" = "resolution" ]; then
         IFS=':' read -a items <<<"$val"
         render_width="${items[0]}"
@@ -219,6 +232,7 @@ export RENDER_rotate="$rotate"
 export RENDER_preexec="$preexec"
 export RENDER_crossed="$crossed"
 export RENDER_digits="$digits"
+export RENDER_renumber="$renumber"
 
 exec "$blender" -b "$blendfile" -P <(cat <<'EOD'
 import sys
@@ -376,7 +390,8 @@ else :
 animation = os.getenv("RENDER_animation", "") != ""
 preexec = get_optional_env("RENDER_preexec")
 crossed = os.getenv("RENDER_crossed", "") != ""
-digits = int(os.getenv("RENDER_digits"))
+frame_digits = int(os.getenv("RENDER_digits"))
+frame_renumber = get_optional_env("RENDER_renumber", int)
 render_out = os.getenv("RENDER_out")
 existing_action = os.getenv("RENDER_existing")
 frame_start = get_optional_env("RENDER_frame_start", int)
@@ -453,7 +468,6 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
         frame_end = frame_start
         frame_step = 1
     #end if
-    frame_end += 1 # make it exclusive
     if render_percentage != None :
         active_scene.render.resolution_percentage = render_percentage
     #end if
@@ -471,10 +485,30 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
     #end if
     start_time = time.time()
     frames_done = 0
-    for frame_nr in range(frame_start, frame_end, frame_step) :
+    if animation :
+        if frame_renumber != None :
+            frame_nr_adjust = frame_renumber - frame_start
+        else :
+            frame_nr_adjust = 0
+        #end if
+        if frame_end < frame_start :
+            raise ValueError("invalid frame number range")
+        #end if
+        if frame_start + frame_nr_adjust <= 0 :
+            raise ValueError("frame numbers go non-positive")
+        #end if
+        if frame_end + frame_nr_adjust >= 10 ** frame_digits :
+            raise ValueError("not enough digits for frame numbers")
+        #end if
+    #end if
+    for frame_nr in range(frame_start, frame_end + 1, frame_step) :
         active_scene.frame_set(frame_nr)
         if animation :
-            out_image_name = os.path.join(render_out, "%%0%dd.png" % digits % frame_nr)
+            out_image_name = os.path.join \
+              (
+                render_out,
+                "%%0%dd.png" % frame_digits % (frame_nr + frame_nr_adjust)
+              )
         else :
             out_image_name = render_out
         #end if
