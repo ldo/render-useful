@@ -89,5 +89,6 @@ for scene in bpy.data.scenes :
     out.write("    Cameras: %d\n" % nr_cameras)
 #end for
 out.write("Scenes: %d\n" % len(bpy.data.scenes))
+out.flush()
 EOD
 )

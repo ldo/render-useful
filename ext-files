@@ -127,5 +127,6 @@ in \
 if not paths_only :
     out.write("\n}\n")
 #end if
+out.flush()
 EOD
 )
