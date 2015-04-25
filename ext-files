@@ -15,6 +15,9 @@
 #          specifies that only the file paths are to be printed,
 #          one to a line. Otherwise more details about the dependencies
 #          are printed in JSON format.
+#    --presence
+#          also includes the status of each external file, whether it
+#          could be found (and read) or not.
 #
 # Copyright 2015 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
@@ -22,6 +25,7 @@
 
 blender=blender
 paths_only=
+presence=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
         break
@@ -34,6 +38,8 @@ for ((;;)); do
         blender="$val"
     elif [ "$opt" = "paths-only" ]; then
         paths_only=1
+    elif [ "$opt" = "presence" ]; then
+        presence=1
     else
         echo "$0: bad option $opt" 1>&2
         exit 3
@@ -49,6 +55,7 @@ if [ $# != 1 ]; then
 fi
 blendfile="$1"
 export RENDER_paths_only="$paths_only"
+export RENDER_presence="$presence"
 
 exec "$blender" 5>&1 1>/dev/null -b "$blendfile" -P <(cat <<'EOD'
 import sys
@@ -56,15 +63,40 @@ import os
 import json
 import bpy
 
+def path_ok(path) :
+    # checks that the file at path exists and is accessible. Requires
+    # parent_dir to be defined as the parent directory of the .blend
+    # file for interpreting relative paths.
+    if path.startswith("//") :
+        # Blender convention for path relative to .blend file
+        path = os.path.join(parent_dir, path[2:])
+    elif not path.startswith("/") :
+        # not expecting a path relative to anything else!
+        path = None
+    #end if
+    return \
+        (
+            path != None
+        and
+            os.access(path, os.R_OK)
+              # technically I would rather use Linux eaccess(2),
+              # but Python doesn’t offer that...
+        )
+#end path_ok
+
 out = os.fdopen(5, "w")
   # use a different fd from stdout, only way it seems to avoid
   # output being polluted by Blender’s messages
 
 paths_only = os.getenv("RENDER_paths_only", "") != ""
+presence = os.getenv("RENDER_presence", "") != ""
 
 if not paths_only :
     out.write("{")
     first_cat = True
+#end if
+if presence :
+    parent_dir = os.path.split(bpy.data.filepath)[0]
 #end if
 for \
     category, match, mismatch, extra \
@@ -94,6 +126,9 @@ in \
                 all(getattr(item, k) == match[k] for k in match)
         ) :
             if paths_only :
+                if presence :
+                    out.write("%s: " % ("missing", "present")[path_ok(item.filepath)])
+                #end if
                 out.write(item.filepath + "\n")
             else :
                 if first_item :
@@ -109,12 +144,21 @@ in \
                     else :
                         out.write(",")
                     #end if
+                    value = getattr(item, attr)
                     out.write \
                       (
                             "\n                %s: %s"
                         %
-                            (json.dumps(attr), json.dumps(getattr(item, attr)))
+                            (json.dumps(attr), json.dumps(value))
                       )
+                    if presence and attr == "filepath" :
+                        out.write \
+                          (
+                                ",\n                present: %s"
+                            %
+                                ("false", "true")[path_ok(value)]
+                          )
+                    #end if
                 #end for
                 out.write("\n            }")
             #end if
