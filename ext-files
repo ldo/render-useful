@@ -104,7 +104,7 @@ in \
     (
         ("images", {"type" : "IMAGE"}, {}, ("filepath_raw",)),
         ("libraries", {}, {}, ()),
-        ("fonts", {}, {"filepath" : "<builtin>"}, ()),
+        ("fonts", {}, (("filepath" , "<builtin>"),), ()),
         ("sounds", {}, {}, ()),
     ) \
 :
@@ -121,7 +121,7 @@ in \
         if (
                 item.packed_file == None
             and
-                not any(getattr(item, k) == mismatch[k] for k in mismatch)
+                not any(getattr(item, k) == v for k, v in mismatch)
             and
                 all(getattr(item, k) == match[k] for k in match)
         ) :
