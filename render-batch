@@ -284,13 +284,20 @@ def format_elapsed(interval, long_form = False, seconds_places = 0) :
             factor = None
             place = interval
         #end if
-        if unitindex == 0 :
-            format = "%%.%df" % seconds_places
-        else :
-            format = "%d"
-        #end if
-        place = format % place + (unit[1], " " + unit[2:4][place != 1])[long_form]
-        result = place + ("", (" ", (", ", " and " )[unitindex == 1])[long_form])[unitindex > 0] + result
+        place = "{:.{places}f}{}".format \
+          (
+            place,
+            (unit[1], " " + unit[2:4][place != 1])[long_form],
+            places = (0, seconds_places)[unitindex == 0]
+          )
+        result = \
+            (
+                place
+            +
+                ("", (" ", (", ", " and " )[unitindex == 1])[long_form])[unitindex > 0]
+            +
+                result
+            )
         if factor == None :
             break
         interval //= factor
@@ -403,7 +410,7 @@ camera_names = []
 i = 0
 while True :
     i += 1
-    camera_name = get_optional_env("RENDER_camera_%d" % i)
+    camera_name = get_optional_env("RENDER_camera_{}".format(i))
     if camera_name == None :
         break
     camera_names.append(camera_name)
@@ -425,7 +432,7 @@ need_tempfile = len(camera_names) > 1 or stereo_offset != None or rotate != 0
 with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
     temp_image_names = None
     if len(camera_names) > 1 :
-        temp_image_names = tuple("camera_%d" % (i + 1) for i in range(len(camera_names)))
+        temp_image_names = tuple("camera_{}".format(i + 1) for i in range(len(camera_names)))
     elif stereo_offset != None :
         temp_image_names = ("left", "right")
     elif rotate != 0 :
@@ -507,7 +514,7 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
             out_image_name = os.path.join \
               (
                 render_out,
-                "%%0%dd.png" % frame_digits % (frame_nr + frame_nr_adjust)
+                "{:0{digits}d}.png".format(frame_nr + frame_nr_adjust, digits = frame_digits)
               )
         else :
             out_image_name = render_out
@@ -622,17 +629,20 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
             #end if
             frames_done += 1
         elif existing_action == "skip" :
-            sys.stdout.write("Skipped %s\n" % out_image_name)
+            sys.stdout.write("Skipped {}\n".format(out_image_name))
         else :
-            raise RuntimeError("Output image “%s” already exists" % out_image_name)
+            raise RuntimeError("Output image “{}” already exists".format(out_image_name))
         #end if
     #end for
     now = time.time()
     sys.stdout.write \
       (
-            "Rendered %d %s in %s\n"
-        %
-            (frames_done, ("frame", "frames")[frames_done != 1], format_elapsed(now - start_time))
+            "Rendered {} {} in {}\n".format
+              (
+                frames_done,
+                ("frame", "frames")[frames_done != 1],
+                format_elapsed(now - start_time)
+              )
       )
 #end with
 EOD
