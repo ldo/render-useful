@@ -48,6 +48,15 @@
 #    --frames=[[start],[end][,step]]
 #          specifies the frame number (if a single frame) or frame
 #          range (if an animation) to be rendered.
+#    --layers=layers
+#          specifies the enabling/disabling of specified scene layers.
+#          “layers” consists of a comma-separated list of one or more
+#          layer numbers in the range [1 .. 20], optionally preceded
+#          by “+” or “-”. “+” indicates to enable the specified layers
+#          (in addition to those already enabled); “-” indicates to
+#          disable the specified layers, and the absence of either
+#          means the specified layers should be enabled and all others
+#          disabled.
 #    --renumber=renumber
 #          for an animation, the starting number to use to generate
 #          names for the output frame files. If omitted, defaults to
@@ -102,6 +111,7 @@ arrange=
 scene=
 samples=
 stereo_offset=
+layers=
 digits=4
 reunumber=
 render_percentage=
@@ -153,6 +163,8 @@ for ((;;)); do
         existing="$val"
     elif [ "$opt" = "frame" -o "$opt" = "frames" ]; then
         frame_spec="$val"
+    elif [ "$opt" = "layers" ]; then
+        layers="$val"
     elif [ "$opt" = "out" ]; then
         out="$val"
     elif [ "$opt" = "percent" ]; then
@@ -224,6 +236,7 @@ export RENDER_out
 export RENDER_arrange="$arrange"
 export RENDER_existing="$existing"
 export RENDER_scene="$scene"
+export RENDER_layers="$layers"
 export RENDER_samples="$samples"
 export RENDER_percentage="$render_percentage"
 export RENDER_width="$render_width"
@@ -237,6 +250,7 @@ export RENDER_renumber="$renumber"
 exec "$blender" -b "$blendfile" -P <(cat <<'EOD'
 import sys
 import os
+import io
 import time
 import tempfile
 import bpy
@@ -309,6 +323,22 @@ def format_elapsed(interval, long_form = False, seconds_places = 0) :
         result
 #end format_elapsed
 
+def get_optional_env(varname, convert = None) :
+    # returns the value of the specified environment variable, converted
+    # by applying the convert function if specified; returns None if
+    # the value of the variable was not specified or empty.
+    val = os.getenv(varname, "")
+    if val != "" :
+        if convert != None :
+            val = convert(val)
+        #end if
+    else :
+        val = None
+    #end if
+    return \
+        val
+#end get_optional_env
+
 class DummyTempDir :
     "a replacement for tempfile.TemporaryDirectory for when I\n" \
     "don’t actually need a temp directory."
@@ -327,25 +357,88 @@ class DummyTempDir :
 
 #end DummyTempDir
 
-#+
-# Mainline
-#-
+def parse_layers_spec(s) :
+    replace_layers = None
+    add_layers = None
+    remove_layers = None
 
-def get_optional_env(varname, convert = None) :
-    # returns the value of the specified environment variable, converted
-    # by applying the convert function if specified; returns None if
-    # the value of the variable was not specified or empty.
-    val = os.getenv(varname, "")
-    if val != "" :
-        if convert != None :
-            val = convert(val)
-        #end if
-    else :
-        val = None
+    ch = None
+    def nextch() :
+        nonlocal ch
+        ch = f.read(1)
+    #end nextch
+
+#begin parse_layers_spec
+    if len(s) > 0 :
+        layers_seen = set()
+        f = io.StringIO(s)
+        nextch()
+        adding = None
+        cur_layers = None
+        while True :
+            curno = None
+            while True :
+                if ch < "0" or ch > "9" :
+                    break
+                if curno == None :
+                    curno = 0
+                #end if
+                curno = curno * 10 + ord(ch) - ord("0")
+                nextch()
+            #end while
+            if curno != None :
+                if curno < 1 or curno > 20 :
+                    raise ValueError("layer number {} out of range [1 .. 20]".format(curno))
+                #end if
+                if curno in layers_seen :
+                    raise ValueError("duplicate layer number {}".format(curno))
+                #end if
+                layers_seen.add(curno)
+                if cur_layers == None :
+                    if adding == True :
+                        if add_layers == None :
+                            add_layers = set()
+                        #end if
+                        cur_layers = add_layers
+                    elif adding == False :
+                        if remove_layers == None :
+                            remove_layers = set()
+                        #end if
+                        cur_layers = remove_layers
+                    else :
+                        if replace_layers == None :
+                            replace_layers = set()
+                        #end if
+                        cur_layers = replace_layers
+                    #end if
+                #end if
+                cur_layers.add(curno)
+            #end if
+            if ch == "" :
+                break
+            if ch == "+" :
+                if replace_layers != None :
+                    raise SyntaxError("cannot both add and replace layers")
+                #end if
+                adding = True
+                nextch()
+            elif ch == "-" :
+                if replace_layers != None :
+                    raise SyntaxError("cannot both remove and replace layers")
+                #end if
+                adding = False
+                nextch()
+            elif ch == "," :
+                nextch()
+            else :
+                raise SyntaxError("unexpected character {} in layer spec".format(ord(ch)))
+            #end if
+        #end while
     #end if
+    sys.stderr.write("layers: replace {}, add {}, remove {}\n".format(replace_layers, add_layers, remove_layers)) # debug
     return \
-        val
-#end get_optional_env
+        replace_layers, add_layers, remove_layers
+#end parse_layers_spec
 
 def get_image_from_png(filename) :
     # loads the contents of a PNG file as an ImageSurface, applying any
@@ -383,6 +476,10 @@ def get_image_from_png(filename) :
     return \
         image
 #end get_image_from_png
+
+#+
+# Mainline
+#-
 
 stereo_offset = get_optional_env("RENDER_stereo_offset", float)
 render_percentage = get_optional_env("RENDER_percentage", int)
@@ -424,6 +521,25 @@ if arrange != None :
         arrange_limit = int(arrange_limit)
     else :
         arrange = arrange[0]
+    #end if
+#end if
+layers_str = os.getenv("RENDER_layers", None)
+if layers_str != None :
+    replace_layers, add_layers, remove_layers = parse_layers_spec(layers_str)
+    if replace_layers != None :
+        for i in range(len(bpy.context.scene.layers)) :
+            bpy.context.scene.layers[i] = i + 1 in replace_layers
+        #end for
+    #end if
+    if add_layers != None :
+        for i in add_layers :
+            bpy.context.scene.layers[i - 1] = True
+        #end for
+    #end if
+    if remove_layers != None :
+        for i in remove_layers :
+            bpy.context.scene.layers[i - 1] = False
+        #end for
     #end if
 #end if
 
