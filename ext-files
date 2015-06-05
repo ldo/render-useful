@@ -11,10 +11,10 @@
 #    --blender=blender
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
-#    --paths-only
-#          specifies that only the file paths are to be printed,
-#          one to a line. Otherwise more details about the dependencies
-#          are printed in JSON format.
+#    --full
+#          spacies that details about the dependencies are to be
+#          printed in JSON format. Otherwise only the file paths are
+#          printed, one to a line.
 #    --presence
 #          also includes the status of each external file, whether it
 #          could be found (and read) or not.
@@ -24,7 +24,7 @@
 #-
 
 blender=blender
-paths_only=
+full_json=
 presence=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
@@ -36,8 +36,8 @@ for ((;;)); do
     opt="${opt%%=*}"
     if [ "$opt" = "blender" ]; then
         blender="$val"
-    elif [ "$opt" = "paths-only" ]; then
-        paths_only=1
+    elif [ "$opt" = "full" ]; then
+        full_json=1
     elif [ "$opt" = "presence" ]; then
         presence=1
     else
@@ -54,7 +54,7 @@ if [ $# != 1 ]; then
     exit 3
 fi
 blendfile="$1"
-export RENDER_paths_only="$paths_only"
+export RENDER_full_json="$full_json"
 export RENDER_presence="$presence"
 
 exec "$blender" 5>&1 1>/dev/null -b "$blendfile" -P <(cat <<'EOD'
@@ -88,10 +88,10 @@ out = os.fdopen(5, "w")
   # use a different fd from stdout, only way it seems to avoid
   # output being polluted by Blender’s messages
 
-paths_only = os.getenv("RENDER_paths_only", "") != ""
+full_json = os.getenv("RENDER_full_json", "") != ""
 presence = os.getenv("RENDER_presence", "") != ""
 
-if not paths_only :
+if full_json :
     out.write("{")
     first_cat = True
 #end if
@@ -108,7 +108,7 @@ in \
         ("sounds", {}, {}, ()),
     ) \
 :
-    if not paths_only :
+    if full_json :
         if first_cat :
             first_cat = False
         else :
@@ -125,12 +125,7 @@ in \
             and
                 all(getattr(item, k) == match[k] for k in match)
         ) :
-            if paths_only :
-                if presence :
-                    out.write("%s: " % ("missing", "present")[path_ok(item.filepath)])
-                #end if
-                out.write(item.filepath + "\n")
-            else :
+            if full_json :
                 if first_item :
                     first_item = False
                 else :
@@ -161,14 +156,19 @@ in \
                     #end if
                 #end for
                 out.write("\n            }")
+            else :
+                if presence :
+                    out.write("%s: " % ("missing", "present")[path_ok(item.filepath)])
+                #end if
+                out.write(item.filepath + "\n")
             #end if
         #end if
     #end for
-    if not paths_only :
+    if full_json :
         out.write("\n        ]")
     #end if
 #end for
-if not paths_only :
+if full_json :
     out.write("\n}\n")
 #end if
 out.flush()
