@@ -149,7 +149,7 @@ in \
                     if presence and attr == "filepath" :
                         out.write \
                           (
-                                ",\n                present: %s"
+                                ",\n                \"present\": %s"
                             %
                                 ("false", "true")[path_ok(value)]
                           )
