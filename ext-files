@@ -103,8 +103,8 @@ for \
 in \
     (
         ("images", {"type" : "IMAGE"}, {}, ("filepath_raw",)),
-        ("libraries", {}, {}, ()),
         ("fonts", {}, (("filepath" , "<builtin>"),), ()),
+        ("libraries", {}, {}, ()),
         ("sounds", {}, {}, ()),
     ) \
 :
