@@ -343,7 +343,7 @@ class DummyTempDir :
     "a replacement for tempfile.TemporaryDirectory for when I\n" \
     "don’t actually need a temp directory."
 
-    def __init__(self) :
+    def __init__(self, prefix) :
         pass
     #end __init__
 
@@ -545,7 +545,7 @@ if layers_str != None :
 
 need_tempfile = len(camera_names) > 1 or stereo_offset != None or rotate != 0
 
-with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile]() as tempdir :
+with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile](prefix = "render-") as tempdir :
     temp_image_names = None
     if len(camera_names) > 1 :
         temp_image_names = tuple("camera_{}".format(i + 1) for i in range(len(camera_names)))
