@@ -262,7 +262,13 @@ from qahirah import \
     Rect, \
     Vector
 
-os.wait() # gobble zombie child of shell which was previously in this process slot
+try :
+    os.wait() # gobble zombie child of shell which was previously in this process slot
+except ChildProcessError :
+    # can happen intermittently?
+    pass
+#end try
+
 
 #+
 # Useful stuff
