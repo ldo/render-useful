@@ -87,6 +87,11 @@
 #          the number of samples per pixel (Cycles renderer only).
 #    --scene=scene
 #          specifies the scene to render.
+#    --vse
+#          indicates that the render is the output of the Video
+#          Sequence Editor. That means the presence of a camera
+#          in the scene is ignored. Incompatible with the --camera
+#          and --stereo options.
 #
 # Unless otherwise specified, omitted options default to the
 # values saved in the blend file.
@@ -110,6 +115,7 @@ nr_cameras=0
 arrange=
 scene=
 samples=
+vse=
 stereo_offset=
 layers=
 digits=4
@@ -191,6 +197,8 @@ for ((;;)); do
         scene="$val"
     elif [ "$opt" = "stereo" ]; then
         stereo_offset="$val"
+    elif [ "$opt" = "vse" ]; then
+        vse=1
     else
         opterror "bad option $opt"
     fi
@@ -207,7 +215,13 @@ if [ -n "$stereo_offset" -a $nr_cameras -gt 1 ]; then
     opterror "cannot specify --stereo with more than one --camera"
 fi
 if [ $nr_cameras -ne 0 ]; then
+    if [ -n "$vse" ]; then
+        opterror "cannot specify --vse with --camera"
+    fi
     unset RENDER_camera_$((nr_cameras + 1)) # just in case
+fi
+if [ -n "$stereo_offset" -a -n "$vse" ]; then
+    opterror "cannot specify --vse with --stereo"
 fi
 
 # pass parameters to Python script in environment variables to avoid
@@ -226,6 +240,7 @@ else
     export RENDER_frame_start="$frame_spec"
 fi
 export RENDER_animation="$animation"
+export RENDER_vse="$vse"
 if [ -n "$out" ]; then
     RENDER_out="$out"
 else
@@ -268,7 +283,6 @@ except ChildProcessError :
     # can happen intermittently?
     pass
 #end try
-
 
 #+
 # Useful stuff
@@ -487,6 +501,7 @@ def get_image_from_png(filename) :
 # Mainline
 #-
 
+vse_render = os.getenv("RENDER_vse", "") != ""
 stereo_offset = get_optional_env("RENDER_stereo_offset", float)
 render_percentage = get_optional_env("RENDER_percentage", int)
 render_width = get_optional_env("RENDER_width", int)
@@ -529,6 +544,7 @@ if arrange != None :
         arrange = arrange[0]
     #end if
 #end if
+assert not vse_render or stereo_offset == None and len(camera_names) == 0
 layers_str = os.getenv("RENDER_layers", None)
 if layers_str != None :
     replace_layers, add_layers, remove_layers = parse_layers_spec(layers_str)
@@ -581,7 +597,9 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile](prefix = "render
     #end if
     active_scene = bpy.context.scene
     active_camera = active_scene.camera
-    orig_camera_matrix = active_camera.matrix_basis.copy()
+    if not vse_render :
+        orig_camera_matrix = active_camera.matrix_basis.copy()
+    #end if
 
     if frame_start == None :
         frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
