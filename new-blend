@@ -1,0 +1,76 @@
+#!/bin/bash
+#+
+# This script creates a new .blend file with default contents. Invoke it
+# as follows:
+#
+#     new-blend [options...] blendfile
+#
+# where blendfile is the name of the new .blend file to create, and the valid
+# options are
+#
+#    --blender=blender
+#          specifies the path to the Blender executable. Defaults to
+#          searching for the name “blender” in your PATH.
+#    --factory
+#          indicates that the file should be initialized from the factory
+#          default settings, not the user default settings.
+#
+# Copyright 2016 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
+#-
+
+blender=blender
+factory=
+load_ui=1
+for ((;;)); do
+    if [ "${1:0:2}" != "--" ]; then
+        break
+    fi
+    opt="${1:2:${#1}}"
+    shift
+    val="${opt#*=}"
+    opt="${opt%%=*}"
+    if [ "$opt" = "blender" ]; then
+        blender="$val"
+    elif [ "$opt" = "factory" ]; then
+        factory=1
+    elif [ "$opt" = "no-load-ui" ]; then
+        load_ui=
+    else
+        echo "$0: bad option $opt" 1>&2
+        exit 1
+    fi
+done
+if [ -z "$(type -p "$blender")" ]; then
+    echo "$0: no such executable “$blender”" 1>&2
+    exit 2
+fi
+if [ $# != 1 ]; then
+    echo $'Usage:\n\t'"$0" $'<blendfile>\n' 1>&2
+    exit 1
+fi
+blendfile="$1"
+if [ -f "$blendfile" ]; then
+    echo "$0: blendfile “$blendfile” already exists" 1>&2
+    exit 2
+fi
+export RENDER_blendfile="$blendfile"
+export RENDER_factory="$factory"
+export RENDER_load_ui="$load_ui"
+
+exec "$blender" -b -P <(cat <<'EOD'
+import os
+import bpy
+
+blendfile = os.getenv("RENDER_blendfile")
+use_factory_settings = os.getenv("RENDER_factory", "") != ""
+load_ui = os.getenv("RENDER_load_ui", "") != ""
+
+if use_factory_settings :
+    bpy.ops.wm.read_factory_settings()
+else :
+    bpy.ops.wm.read_homefile(load_ui = load_ui)
+#end if
+bpy.ops.wm.save_as_mainfile(filepath = blendfile)
+EOD
+)
