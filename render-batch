@@ -100,7 +100,7 @@
 # two eye images side-by-side, the image for the right eye on
 # the left and vice versa, for viewing as “cross-eyed” stereo.
 #
-# Copyright 2013-2015 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2013-2016 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -131,6 +131,10 @@ crossed=
 preexec=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
+        break
+    fi
+    if [ "$1" == "--" ]; then
+        shift
         break
     fi
     opt="${1:2:${#1}}"
@@ -210,6 +214,7 @@ if [ $# != 1 ]; then
     opterror $'Usage:\n\t'"$0 "$'<blendfile>'
 fi
 blendfile="$1"
+export RENDER_blendfile="$blendfile"
 
 if [ -n "$stereo_offset" -a $nr_cameras -gt 1 ]; then
     opterror "cannot specify --stereo with more than one --camera"
@@ -262,7 +267,7 @@ export RENDER_crossed="$crossed"
 export RENDER_digits="$digits"
 export RENDER_renumber="$renumber"
 
-exec "$blender" -b "$blendfile" -P <(cat <<'EOD'
+exec "$blender" -b -P <(cat <<'EOD'
 import sys
 import os
 import io
@@ -501,6 +506,8 @@ def get_image_from_png(filename) :
 # Mainline
 #-
 
+blendfile = os.getenv("RENDER_blendfile")
+bpy.ops.wm.open_mainfile(filepath = blendfile)
 vse_render = os.getenv("RENDER_vse", "") != ""
 stereo_offset = get_optional_env("RENDER_stereo_offset", float)
 render_percentage = get_optional_env("RENDER_percentage", int)

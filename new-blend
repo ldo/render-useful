@@ -26,6 +26,10 @@ for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
         break
     fi
+    if [ "$1" == "--" ]; then
+        shift
+        break
+    fi
     opt="${1:2:${#1}}"
     shift
     val="${opt#*=}"

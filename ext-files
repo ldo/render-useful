@@ -19,7 +19,7 @@
 #          also includes the status of each external file, whether it
 #          could be found (and read) or not.
 #
-# Copyright 2015 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2015-2016 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -28,6 +28,10 @@ full_json=
 presence=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
+        break
+    fi
+    if [ "$1" == "--" ]; then
+        shift
         break
     fi
     opt="${1:2:${#1}}"
@@ -53,11 +57,11 @@ if [ $# != 1 ]; then
     echo $'Usage:\n\t'"$0" $'<blendfile>\n' 1>&2
     exit 3
 fi
-blendfile="$1"
+export RENDER_blendfile="$1"
 export RENDER_full_json="$full_json"
 export RENDER_presence="$presence"
 
-exec "$blender" 5>&1 1>/dev/null -b "$blendfile" -P <(cat <<'EOD'
+exec "$blender" 5>&1 1>/dev/null -b -P <(cat <<'EOD'
 import sys
 import os
 import json
@@ -88,6 +92,8 @@ out = os.fdopen(5, "w")
   # use a different fd from stdout, only way it seems to avoid
   # output being polluted by Blender’s messages
 
+blendfile = os.getenv("RENDER_blendfile")
+bpy.ops.wm.open_mainfile(filepath = blendfile)
 full_json = os.getenv("RENDER_full_json", "") != ""
 presence = os.getenv("RENDER_presence", "") != ""
 
