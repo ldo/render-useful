@@ -1,0 +1,12 @@
+This repo contains a number of scripts for doing useful things with
+[Blender](https://www.blender.org/), such as batch rendering or
+obtaining information about dependencies of `.blend` files.
+
+Each script has an explanation of its usage in its header.
+
+The scripts are written in Python, enclosed in a Bash wrapper that
+launches Blender and feeds it the Python script for execution within
+the application.
+
+Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
+2016 February 2
