@@ -142,8 +142,8 @@ for \
     category, match, mismatch, extra \
 in \
     (
-        ("images", {"type" : "IMAGE"}, {}, ("filepath_raw",)),
         ("fonts", {}, (("filepath" , "<builtin>"),), ()),
+        ("images", {"type" : "IMAGE"}, {}, ("filepath_raw",)),
         ("libraries", {}, {}, ()),
         ("sounds", {}, {}, ()),
     ) \
