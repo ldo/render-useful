@@ -149,13 +149,7 @@ in \
     ) \
 :
     if full_json :
-        if first_cat :
-            first_cat = False
-        else :
-            out.write(",")
-        #end if
-        out.write("\n    %s:\n        [" % json.dumps(category))
-        first_item = True
+        cat_started = False
     #end if
     for item in getattr(bpy.data, category) :
         if (
@@ -166,6 +160,18 @@ in \
                 all(getattr(item, k) == match[k] for k in match)
         ) :
             if full_json :
+                if not cat_started :
+                    if full_json :
+                        if first_cat :
+                            first_cat = False
+                        else :
+                            out.write(",")
+                        #end if
+                        out.write("\n    %s:\n        [" % json.dumps(category))
+                        first_item = True
+                    #end if
+                    cat_started = True
+                #end if
                 if first_item :
                     first_item = False
                 else :
@@ -212,7 +218,7 @@ in \
     if found :
         break
     #end if
-    if full_json :
+    if full_json and cat_started :
         out.write("\n        ]")
     #end if
 #end for
