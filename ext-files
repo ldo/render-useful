@@ -144,8 +144,8 @@ in \
     (
         ("fonts", {}, (("filepath" , "<builtin>"),), ()),
         ("images", {"type" : "IMAGE"}, {}, ("filepath_raw",)),
-        ("libraries", {}, {}, ()),
-        ("sounds", {}, {}, ()),
+        ("libraries", {}, (), ()),
+        ("sounds", {}, (), ()),
     ) \
 :
     if full_json :
