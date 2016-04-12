@@ -11,6 +11,11 @@
 #    --blender=blender
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
+#    --enable-cycles
+#          switch the render engine to Cycles. Also enables nodes on all
+#          lamps and materials.
+#    --enable-osl
+#          turn on Open Shading Language (ignored unless specified with --enable-cycles).
 #    --factory
 #          indicates that the file should be initialized from the factory
 #          default settings, not the user default settings.
@@ -22,6 +27,8 @@
 blender=blender
 factory=
 load_ui=1
+enable_cycles=
+enable_osl=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
         break
@@ -36,6 +43,10 @@ for ((;;)); do
     opt="${opt%%=*}"
     if [ "$opt" = "blender" ]; then
         blender="$val"
+    elif [ "$opt" = "enable-cycles" ]; then
+        enable_cycles=1
+    elif [ "$opt" = "enable-osl" ]; then
+        enable_osl=1
     elif [ "$opt" = "factory" ]; then
         factory=1
     elif [ "$opt" = "no-load-ui" ]; then
@@ -59,6 +70,8 @@ if [ -f "$blendfile" ]; then
     exit 2
 fi
 export RENDER_blendfile="$blendfile"
+export RENDER_enable_cycles="$enable_cycles"
+export RENDER_enable_osl="$enable_osl"
 export RENDER_factory="$factory"
 export RENDER_load_ui="$load_ui"
 
@@ -69,11 +82,26 @@ import bpy
 blendfile = os.getenv("RENDER_blendfile")
 use_factory_settings = os.getenv("RENDER_factory", "") != ""
 load_ui = os.getenv("RENDER_load_ui", "") != ""
+enable_cycles = os.getenv("RENDER_enable_cycles", "") != ""
+enable_osl = os.getenv("RENDER_enable_osl", "") != ""
 
 if use_factory_settings :
     bpy.ops.wm.read_factory_settings()
 else :
     bpy.ops.wm.read_homefile(load_ui = load_ui)
+#end if
+if enable_cycles :
+    for scene in bpy.data.scenes :
+        scene.render.engine = "CYCLES"
+        if enable_osl :
+            scene.cycles.shading_system = True
+        #end if
+    #end for
+    for blocktype in ("lamps", "materials") :
+        for datablock in getattr(bpy.data, blocktype) :
+            datablock.use_nodes = True
+        #end for
+    #end for
 #end if
 bpy.ops.wm.save_as_mainfile(filepath = blendfile)
 EOD
