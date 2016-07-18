@@ -87,6 +87,9 @@
 #          the number of samples per pixel (Cycles renderer only).
 #    --scene=scene
 #          specifies the scene to render.
+#    --time-remap=old:new
+#          alters the rendered frame rate to be
+#          (new ÷ old) × the existing frame rate.
 #    --vse
 #          indicates that the render is the output of the Video
 #          Sequence Editor. That means the presence of a camera
@@ -127,6 +130,7 @@ rotate=
 out=
 existing=error
 animation=
+time_remap=
 crossed=
 preexec=
 for ((;;)); do
@@ -201,6 +205,8 @@ for ((;;)); do
         scene="$val"
     elif [ "$opt" = "stereo" ]; then
         stereo_offset="$val"
+    elif [ "$opt" = "time-remap" ]; then
+        time_remap="$val"
     elif [ "$opt" = "vse" ]; then
         vse=1
     else
@@ -245,6 +251,7 @@ else
     export RENDER_frame_start="$frame_spec"
 fi
 export RENDER_animation="$animation"
+export RENDER_time_remap="$time_remap"
 export RENDER_vse="$vse"
 if [ -n "$out" ]; then
     RENDER_out="$out"
@@ -520,6 +527,10 @@ else :
     rotate = 0
 #end if
 animation = os.getenv("RENDER_animation", "") != ""
+time_remap = get_optional_env("RENDER_time_remap")
+if time_remap != None :
+    time_remap = tuple(int(i) for i in time_remap.split(":", 1))
+#end if
 preexec = get_optional_env("RENDER_preexec")
 crossed = os.getenv("RENDER_crossed", "") != ""
 frame_digits = int(os.getenv("RENDER_digits"))
@@ -589,6 +600,10 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile](prefix = "render
 
     if scene_name != None :
         bpy.context.screen.scene = bpy.data.scenes[scene_name]
+    #end if
+    if time_remap != None :
+        bpy.context.scene.render.frame_map_old = time_remap[0]
+        bpy.context.scene.render.frame_map_new = time_remap[1]
     #end if
     if len(camera_names) == 1 :
         bpy.context.scene.camera = bpy.data.objects[camera_names[0]]
