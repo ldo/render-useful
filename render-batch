@@ -90,6 +90,9 @@
 #    --time-remap=old:new
 #          alters the rendered frame rate to be
 #          (new ÷ old) × the existing frame rate.
+#          You will need to make the corresponding adjustments
+#          to the start and end frame numbers to get the same
+#          time duration.
 #    --vse
 #          indicates that the render is the output of the Video
 #          Sequence Editor. That means the presence of a camera
