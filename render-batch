@@ -567,24 +567,6 @@ if arrange != None :
 #end if
 assert not vse_render or stereo_offset == None and len(camera_names) == 0
 layers_str = os.getenv("RENDER_layers", None)
-if layers_str != None :
-    replace_layers, add_layers, remove_layers = parse_layers_spec(layers_str)
-    if replace_layers != None :
-        for i in range(len(bpy.context.scene.layers)) :
-            bpy.context.scene.layers[i] = i + 1 in replace_layers
-        #end for
-    #end if
-    if add_layers != None :
-        for i in add_layers :
-            bpy.context.scene.layers[i - 1] = True
-        #end for
-    #end if
-    if remove_layers != None :
-        for i in remove_layers :
-            bpy.context.scene.layers[i - 1] = False
-        #end for
-    #end if
-#end if
 
 need_tempfile = len(camera_names) > 1 or stereo_offset != None or rotate != 0
 
@@ -603,6 +585,24 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile](prefix = "render
 
     if scene_name != None :
         bpy.context.screen.scene = bpy.data.scenes[scene_name]
+    #end if
+    if layers_str != None :
+        replace_layers, add_layers, remove_layers = parse_layers_spec(layers_str)
+        if replace_layers != None :
+            for i in range(len(bpy.context.scene.layers)) :
+                bpy.context.scene.layers[i] = i + 1 in replace_layers
+            #end for
+        #end if
+        if add_layers != None :
+            for i in add_layers :
+                bpy.context.scene.layers[i - 1] = True
+            #end for
+        #end if
+        if remove_layers != None :
+            for i in remove_layers :
+                bpy.context.scene.layers[i - 1] = False
+            #end for
+        #end if
     #end if
     if time_remap != None :
         bpy.context.scene.render.frame_map_old = time_remap[0]
