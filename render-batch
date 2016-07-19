@@ -456,12 +456,14 @@ def parse_layers_spec(s) :
                     raise SyntaxError("cannot both add and replace layers")
                 #end if
                 adding = True
+                cur_layers = None
                 nextch()
             elif ch == "-" :
                 if replace_layers != None :
                     raise SyntaxError("cannot both remove and replace layers")
                 #end if
                 adding = False
+                cur_layers = None
                 nextch()
             elif ch == "," :
                 nextch()
