@@ -97,7 +97,7 @@ if enable_cycles :
             scene.cycles.shading_system = True
         #end if
     #end for
-    for blocktype in ("lamps", "materials") :
+    for blocktype in ("lamps", "materials", "worlds") :
         for datablock in getattr(bpy.data, blocktype) :
             datablock.use_nodes = True
         #end for
