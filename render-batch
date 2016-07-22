@@ -590,31 +590,26 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile](prefix = "render
     #end if
     if layers_str != None :
         replace_layers, add_layers, remove_layers = parse_layers_spec(layers_str)
+        # subtle trickiness here: if this scene is the already-active
+        # scene, and only one layer is active, but I am turning it
+        # off, Blender will not let me do so until some other
+        # layer becomes active.
         if replace_layers != None :
-            # subtle trickiness here: if this scene is the already-active
-            # scene, and only one layer is active, but I am turning it
-            # off, Blender will not let me do so until some other
-            # layer becomes active. So I make sure to enable something
-            # else first.
-            to_remove = set \
+            assert add_layers == None and remove_layers == None
+            remove_layers = set \
                 (i + 1
                     for i in range(len(bpy.context.scene.layers))
                     if bpy.context.scene.layers[i] and (i + 1 not in replace_layers)
                 )
-            # turn on all layers I am enabling first:
-            for i in replace_layers - to_remove :
-                bpy.context.scene.layers[i - 1] = True
-            #end for
-            # then turn off the ones I am disabling:
-            for i in to_remove :
-                bpy.context.scene.layers[i - 1] = False
-            #end for
+            add_layers = replace_layers - remove_layers
         #end if
+        # turn on all layers I am enabling first:
         if add_layers != None :
             for i in add_layers :
                 bpy.context.scene.layers[i - 1] = True
             #end for
         #end if
+        # then turn off the ones I am disabling:
         if remove_layers != None :
             for i in remove_layers :
                 bpy.context.scene.layers[i - 1] = False
