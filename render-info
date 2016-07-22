@@ -90,7 +90,8 @@ for scene in bpy.data.scenes :
         %
             (scene.render.resolution_percentage, scene.render.resolution_x, scene.render.resolution_y)
       )
-    if getattr(scene.render, "use_multiview", False) :
+    multiview = getattr(scene.render, "use_multiview", False)
+    if multiview :
         out.write \
           (
                 "    multiview = %s\n"
@@ -102,12 +103,26 @@ for scene in bpy.data.scenes :
     for object in scene.objects :
         if object.type == "CAMERA" :
             nr_cameras += 1
+            camera = object.data
             out.write \
               (
-                    "    %s camera “%s”\n"
+                    "    %s camera “%s” type %s"
                 %
-                    ((other_marker, active_marker)[object.name == scene.camera.name], object.name)
+                    (
+                        (other_marker, active_marker)[object.name == scene.camera.name],
+                        object.name,
+                        camera.type,
+                    )
               )
+            if multiview :
+                out.write \
+                  (
+                        ", stereo convergence %s, pivot %s"
+                    %
+                        (camera.stereo.convergence_mode, camera.stereo.pivot)
+                  )
+            #end if
+            out.write("\n")
         #end if
     #end for
     out.write("    Cameras: %d\n" % nr_cameras)
