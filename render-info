@@ -90,6 +90,14 @@ for scene in bpy.data.scenes :
         %
             (scene.render.resolution_percentage, scene.render.resolution_x, scene.render.resolution_y)
       )
+    if getattr(scene.render, "use_multiview", False) :
+        out.write \
+          (
+                "    multiview = %s\n"
+            %
+                scene.render.views_format
+          )
+    #end if
     nr_cameras = 0
     for object in scene.objects :
         if object.type == "CAMERA" :
