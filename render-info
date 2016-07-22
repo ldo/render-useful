@@ -73,8 +73,17 @@ for scene in bpy.data.scenes :
       )
     out.write \
       (
-        "    frames = %d to %d by %d\n" % (scene.frame_start, scene.frame_end, scene.frame_step)
+        "    frames = %d to %d by %d" % (scene.frame_start, scene.frame_end, scene.frame_step)
       )
+    if scene.render.frame_map_old != scene.render.frame_map_new :
+        out.write \
+          (
+                ", time remap old:new = %d:%d"
+            %
+                (scene.render.frame_map_old, scene.render.frame_map_new)
+          )
+    #end if
+    out.write("\n")
     out.write \
       (
             "    render resolution = %d%% × (%d, %d)\n"
