@@ -1,0 +1,100 @@
+#!/bin/bash
+#+
+# This script displays information about physics baking caches
+# associated with a .blend file. Invoke it as follows:
+#
+#     bakeable [options...] blendfile
+#
+# where the valid options are
+#
+#    --blender=blender
+#          specifies the path to the Blender executable. Defaults to
+#          searching for the name “blender” in your PATH.
+#
+# Copyright 2016 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
+#-
+
+blender=blender
+for ((;;)); do
+    if [ "${1:0:2}" != "--" ]; then
+        break
+    fi
+    if [ "$1" == "--" ]; then
+        shift
+        break
+    fi
+    opt="${1:2:${#1}}"
+    shift
+    val="${opt#*=}"
+    opt="${opt%%=*}"
+    if [ "$opt" = "blender" ]; then
+        blender="$val"
+    else
+        echo "$0: bad option $opt" 1>&2
+        exit 3
+    fi
+done
+if [ -z "$(type -p "$blender")" ]; then
+    echo "$0: no such executable “$blender”" 1>&2
+    exit 3
+fi
+if [ $# != 1 ]; then
+    echo $'Usage:\n\t'"$0" $'<blendfile>\n' 1>&2
+    exit 3
+fi
+export RENDER_blendfile="$1"
+
+exec "$blender" 5>&1 1>/dev/null -b -P <(cat <<'EOD'
+import sys
+import os
+import bpy
+
+def expand_path(path, allow_curdir_relative) :
+    # normalizes path to be a full pathname. Requires parent_dir to be
+    # defined as the parent directory of the .blend file for
+    # interpreting relative paths.
+    if path.startswith("//") :
+        # Blender convention for path relative to .blend file
+        path = os.path.join(parent_dir, path[2:])
+    elif not path.startswith("/") :
+        if allow_curdir_relative :
+            path = os.path.abspath(path)
+        else :
+            # not expecting a path relative to anything else!
+            path = None
+        #end if
+    #end if
+    return \
+        path
+#end expand_path
+
+out = os.fdopen(5, "w")
+  # use a different fd from stdout, only way it seems to avoid
+  # output being polluted by Blender’s messages
+
+blendfile = os.getenv("RENDER_blendfile")
+bpy.ops.wm.open_mainfile(filepath = blendfile)
+
+for object in bpy.data.objects :
+    for modifier in object.modifiers :
+        if modifier.type in ("OCEAN",) :
+            out.write \
+              (
+                    "obj “%s” modifier “%s:%s” filepath “%s”\n"
+                %
+                    (object.name, modifier.name, modifier.type, modifier.filepath)
+              )
+        elif modifier.type == "FLUID_SIMULATION" and modifier.settings.type == "DOMAIN" :
+            out.write \
+              (
+                    "obj “%s” modifier “%s:%s” filepath “%s”\n"
+                %
+                    (object.name, modifier.name, modifier.type, modifier.settings.filepath)
+              )
+        #end if
+        # TODO: more physics types
+    #end for
+#end for
+EOD
+)
