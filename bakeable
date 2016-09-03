@@ -75,22 +75,23 @@ out = os.fdopen(5, "w")
 
 blendfile = os.getenv("RENDER_blendfile")
 bpy.ops.wm.open_mainfile(filepath = blendfile)
+parent_dir = os.path.split(os.path.abspath(bpy.data.filepath))[0]
 
 for object in bpy.data.objects :
     for modifier in object.modifiers :
         if modifier.type in ("OCEAN",) :
             out.write \
               (
-                    "obj “%s” modifier “%s:%s” filepath “%s”\n"
+                    "obj “%s” modifier “%s:%s” filepath “%s” => “%s”\n"
                 %
-                    (object.name, modifier.name, modifier.type, modifier.filepath)
+                    (object.name, modifier.name, modifier.type, modifier.filepath, expand_path(modifier.filepath, False))
               )
         elif modifier.type == "FLUID_SIMULATION" and modifier.settings.type == "DOMAIN" :
             out.write \
               (
-                    "obj “%s” modifier “%s:%s” filepath “%s”\n"
+                    "obj “%s” modifier “%s:%s” filepath “%s” => “%s”\n"
                 %
-                    (object.name, modifier.name, modifier.type, modifier.settings.filepath)
+                    (object.name, modifier.name, modifier.type, modifier.settings.filepath, expand_path(modifier.settings.filepath, False))
               )
         #end if
         # TODO: more physics types
