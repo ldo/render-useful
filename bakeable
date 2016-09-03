@@ -89,7 +89,7 @@ for object in bpy.data.objects :
         elif modifier.type in ("CLOTH", "SOFT_BODY") :
             filepath = modifier.point_cache.filepath
         #end if
-        # TODO: dynamic paint, rigid body, particle system, smoke
+        # TODO: dynamic paint, particle system, smoke
         if filepath != None :
             out.write \
               (
@@ -99,6 +99,17 @@ for object in bpy.data.objects :
               )
         #end if
     #end for
+#end for
+for scene in bpy.data.scenes :
+    if scene.rigidbody_world != None :
+        filepath = scene.rigidbody_world.point_cache.filepath
+        out.write \
+          (
+                "scene “%s” rigidbody filepath “%s” => “%s”\n"
+            %
+                (scene.name, filepath, expand_path(filepath, False))
+          )
+    #end if
 #end for
 EOD
 )
