@@ -94,7 +94,7 @@ for object in bpy.data.objects :
                 point_cache = modifier.domain_settings.point_cache
             #end if
         #end if
-        # TODO: dynamic paint, particle system
+        # TODO: dynamic paint
         if point_cache != None :
             filepath = point_cache.filepath
         #end if
@@ -106,6 +106,15 @@ for object in bpy.data.objects :
                     (object.name, modifier.name, modifier.type, filepath, expand_path(filepath, False))
               )
         #end if
+    #end for
+    for particle_system in object.particle_systems :
+        filepath = particle_system.point_cache.filepath
+        out.write \
+          (
+                "obj “%s” particle system “%s” filepath “%s” => “%s”\n"
+            %
+                (object.name, particle_system.name, filepath, expand_path(filepath, False))
+          )
     #end for
 #end for
 for scene in bpy.data.scenes :
