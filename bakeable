@@ -93,8 +93,32 @@ for object in bpy.data.objects :
             if modifier.smoke_type == "DOMAIN" :
                 point_cache = modifier.domain_settings.point_cache
             #end if
+        elif modifier.type == "DYNAMIC_PAINT" :
+            if modifier.ui_type == "CANVAS" :
+                # can have multiple caches associated with multiple surfaces, so
+                # report them directly here
+                first = True
+                for idx, surface in enumerate(modifier.canvas_settings.canvas_surfaces) :
+                    filepath = surface.point_cache.filepath
+                    if first :
+                        out.write \
+                          (
+                                "obj “%s” modifier “%s:%s”:\n"
+                            %
+                                (object.name, modifier.name, modifier.type)
+                          )
+                        first = False
+                    #end if
+                    out.write \
+                      (
+                            " surface %d “%s” filepath “%s” => “%s”\n"
+                        %
+                            (idx, surface.name, filepath, expand_path(filepath, False))
+                      )
+                #end for
+                filepath = None # avoid duplicate report
+            #end if
         #end if
-        # TODO: dynamic paint
         if point_cache != None :
             filepath = point_cache.filepath
         #end if
