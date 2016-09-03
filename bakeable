@@ -79,22 +79,25 @@ parent_dir = os.path.split(os.path.abspath(bpy.data.filepath))[0]
 
 for object in bpy.data.objects :
     for modifier in object.modifiers :
+        filepath = None
         if modifier.type in ("OCEAN",) :
+            filepath = modifier.filepath
+        elif modifier.type == "FLUID_SIMULATION" :
+            if modifier.settings.type == "DOMAIN" :
+                filepath = modifier.settings.filepath
+            #end if
+        elif modifier.type in ("CLOTH", "SOFT_BODY") :
+            filepath = modifier.point_cache.filepath
+        #end if
+        # TODO: dynamic paint, rigid body, particle system, smoke
+        if filepath != None :
             out.write \
               (
                     "obj “%s” modifier “%s:%s” filepath “%s” => “%s”\n"
                 %
-                    (object.name, modifier.name, modifier.type, modifier.filepath, expand_path(modifier.filepath, False))
-              )
-        elif modifier.type == "FLUID_SIMULATION" and modifier.settings.type == "DOMAIN" :
-            out.write \
-              (
-                    "obj “%s” modifier “%s:%s” filepath “%s” => “%s”\n"
-                %
-                    (object.name, modifier.name, modifier.type, modifier.settings.filepath, expand_path(modifier.settings.filepath, False))
+                    (object.name, modifier.name, modifier.type, filepath, expand_path(filepath, False))
               )
         #end if
-        # TODO: more physics types
     #end for
 #end for
 EOD
