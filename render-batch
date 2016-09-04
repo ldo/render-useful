@@ -36,13 +36,17 @@
 #          eg “0001.png”, “0002.png” etc.
 #    --preexec=script
 #          executes the specified Python code prior to the rendering.
-#    --existing=error|overwrite|skip
+#    --existing=error|overwrite|replace-all|skip
 #          specifies what to do if an output image file already exists:
-#            error     -- signal an error and abort the render
-#            overwrite -- overwrite the output file
-#            skip      -- skip rendering this frame. If rendering an
-#                         animation, the rendering continues with any
-#                         remaining frames.
+#            error       -- signal an error and abort the render
+#            overwrite   -- overwrite the output file
+#            replace-all -- only for animations: replaces any existing
+#                           output directory (and its contents) with the
+#                           new frames, but only on successful completion
+#                           of the entire render.
+#            skip        -- skip rendering this frame. If rendering an
+#                           animation, the rendering continues with any
+#                           remaining frames.
 #          If omitted, the default is error.
 #    --frame=framenr
 #    --frames=[[start],[end][,step]]
@@ -178,8 +182,8 @@ for ((;;)); do
     elif [ "$opt" = "digits" ]; then
         digits="$val"
     elif [ "$opt" = "existing" ]; then
-        if [ "$val" != "error" -a "$val" != "overwrite" -a "$val" != "skip" ]; then
-            opterror "--existing value must be “error”, “overwrite” or “skip”"
+        if [ "$val" != "error" -a "$val" != "overwrite" -a "$val" != "replace-all" -a "$val" != "skip" ]; then
+            opterror "--existing value must be “error”, “overwrite”, “replace-all” or “skip”"
         fi
         existing="$val"
     elif [ "$opt" = "frame" -o "$opt" = "frames" ]; then
@@ -243,7 +247,7 @@ fi
 if [ -n "$stereo_offset" -a -n "$vse" ]; then
     opterror "cannot specify --vse with --stereo"
 fi
-if [ $use_camera_layers -a -n "$layers" ]; then
+if [ -n "$use_camera_layers" -a -n "$layers" ]; then
     opterror "cannot specify --use-camera-layers with --layers"
 fi
 
@@ -251,7 +255,7 @@ fi
 # problems with special characters
 export RENDER_stereo_offset="$stereo_offset"
 if [ $animation ]; then
-    if [ -z "$out" -o ! -d "$out" ]; then
+    if [ -z "$out" -o \( \( "$existing" != "replace-all" -o -e "$out" \) -a ! -d "$out" \) ]; then
         opterror "must specify --out directory for animation frames"
     fi
     IFS=',' read -a frame_spec <<<"$frame_spec"
@@ -293,6 +297,7 @@ import os
 import io
 import time
 import tempfile
+import shutil
 import bpy
 import mathutils
 import qahirah as qah
@@ -618,9 +623,32 @@ assert not vse_render or stereo_offset == None and len(camera_names) == 0
 layers_str = os.getenv("RENDER_layers", None)
 use_camera_layers = os.getenv("RENDER_use_camera_layers", "") != ""
 
-need_tempfile = len(camera_names) > 1 or stereo_offset != None or rotate != 0
+need_worktemp = len(camera_names) > 1 or stereo_offset != None or rotate != 0
+if animation and existing_action == "replace-all" :
+    # Create a temporary output directory into which to save the new frames.
+    # This is not automatically deleted on error, so you at least get the
+    # partial results.
+    i = 0
+    while True :
+        i += 1
+        if i == 10000 :
+            raise RuntimeError("failed to create output temp directory")
+        #end if
+        outtempdir = "{}-{:04d}".format(render_out, i)
+        try :
+            os.mkdir(outtempdir)
+            break
+        except FileExistsError :
+            pass
+        #end try
+    #end while
+    use_render_out = outtempdir
+else :
+    outtempdir = None
+    use_render_out = render_out
+#end if
 
-with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile](prefix = "render-") as tempdir :
+with (DummyTempDir, tempfile.TemporaryDirectory)[need_worktemp](prefix = "render-") as tempdir :
     temp_image_names = None
     if len(camera_names) > 1 :
         temp_image_names = tuple("camera_{}".format(i + 1) for i in range(len(camera_names)))
@@ -713,13 +741,13 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile](prefix = "render
         if animation :
             out_image_name = os.path.join \
               (
-                render_out,
+                use_render_out,
                 "{:0{digits}d}.png".format(frame_nr + frame_nr_adjust, digits = frame_digits)
               )
         else :
             out_image_name = render_out
         #end if
-        if existing_action == "overwrite" or not os.path.exists(out_image_name) :
+        if existing_action in ("overwrite", "replace-all") or not os.path.exists(out_image_name) :
             if use_camera_layers and len(camera_names) <= 1 :
                 set_layers_from_object(bpy.context.scene.camera)
             #end if
@@ -840,6 +868,14 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile](prefix = "render
             raise RuntimeError("Output image “{}” already exists".format(out_image_name))
         #end if
     #end for
+    if outtempdir != None :
+        if os.path.islink(render_out) :
+            os.remove(render_out)
+        elif os.path.isdir(render_out) :
+            shutil.rmtree(render_out)
+        #end if
+        os.rename(outtempdir, render_out)
+    #end if
     now = time.time()
     sys.stdout.write \
       (
