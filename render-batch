@@ -628,6 +628,9 @@ if animation and existing_action == "replace-all" :
     # Create a temporary output directory into which to save the new frames.
     # This is not automatically deleted on error, so you at least get the
     # partial results.
+    if render_out.endswith("/") :
+        render_out = render_out[:-1]
+    #end if
     i = 0
     while True :
         i += 1
