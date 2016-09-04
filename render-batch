@@ -93,6 +93,9 @@
 #          You will need to make the corresponding adjustments
 #          to the start and end frame numbers to get the same
 #          time duration.
+#    --use-camera-layers
+#          sets the visible layers to exactly those on which the
+#          active camera is visible.
 #    --vse
 #          indicates that the render is the output of the Video
 #          Sequence Editor. That means the presence of a camera
@@ -124,6 +127,7 @@ samples=
 vse=
 stereo_offset=
 layers=
+use_camera_layers=
 digits=4
 reunumber=
 render_percentage=
@@ -210,6 +214,8 @@ for ((;;)); do
         stereo_offset="$val"
     elif [ "$opt" = "time-remap" ]; then
         time_remap="$val"
+    elif [ "$opt" = "use-camera-layers" ]; then
+        use_camera_layers=1
     elif [ "$opt" = "vse" ]; then
         vse=1
     else
@@ -236,6 +242,9 @@ if [ $nr_cameras -ne 0 ]; then
 fi
 if [ -n "$stereo_offset" -a -n "$vse" ]; then
     opterror "cannot specify --vse with --stereo"
+fi
+if [ $use_camera_layers -a -n "$layers" ]; then
+    opterror "cannot specify --use-camera-layers with --layers"
 fi
 
 # pass parameters to Python script in environment variables to avoid
@@ -267,6 +276,7 @@ export RENDER_arrange="$arrange"
 export RENDER_existing="$existing"
 export RENDER_scene="$scene"
 export RENDER_layers="$layers"
+export RENDER_use_camera_layers="$use_camera_layers"
 export RENDER_samples="$samples"
 export RENDER_percentage="$render_percentage"
 export RENDER_width="$render_width"
@@ -514,6 +524,43 @@ def get_image_from_png(filename) :
         image
 #end get_image_from_png
 
+def set_layers(replace_layers = None, add_layers = None, remove_layers = None) :
+    "sets the current set of active layers to those in replace_layers, or" \
+    " alternatively adds add_layers to the active layers and then removes remove_layers" \
+    " from the active layers. Each value is a set of 0-based integer layer indices."
+    # Subtle trickiness here: if this scene is the already-active
+    # scene, and only one layer is active, but I am turning it
+    # off, Blender will not let me do so until some other
+    # layer becomes active.
+    if replace_layers != None :
+        assert add_layers == None and remove_layers == None
+        remove_layers = set \
+            (i + 1
+                for i in range(len(bpy.context.scene.layers))
+                if bpy.context.scene.layers[i] and (i + 1 not in replace_layers)
+            )
+        add_layers = replace_layers - remove_layers
+    #end if
+    # turn on all layers I am enabling first:
+    if add_layers != None :
+        for i in add_layers :
+            bpy.context.scene.layers[i - 1] = True
+        #end for
+    #end if
+    # then turn off the ones I am disabling:
+    if remove_layers != None :
+        for i in remove_layers :
+            bpy.context.scene.layers[i - 1] = False
+        #end for
+    #end if
+#end set_layers
+
+def set_layers_from_object(obj) :
+    "sets the current set of active layers to exactly those on which" \
+    " the object obj is visible."
+    set_layers(replace_layers = set(i for i in range(20) if obj.layers[i]))
+#end set_layers_from_object
+
 #+
 # Mainline
 #-
@@ -569,6 +616,7 @@ if arrange != None :
 #end if
 assert not vse_render or stereo_offset == None and len(camera_names) == 0
 layers_str = os.getenv("RENDER_layers", None)
+use_camera_layers = os.getenv("RENDER_use_camera_layers", "") != ""
 
 need_tempfile = len(camera_names) > 1 or stereo_offset != None or rotate != 0
 
@@ -589,32 +637,7 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile](prefix = "render
         bpy.context.screen.scene = bpy.data.scenes[scene_name]
     #end if
     if layers_str != None :
-        replace_layers, add_layers, remove_layers = parse_layers_spec(layers_str)
-        # subtle trickiness here: if this scene is the already-active
-        # scene, and only one layer is active, but I am turning it
-        # off, Blender will not let me do so until some other
-        # layer becomes active.
-        if replace_layers != None :
-            assert add_layers == None and remove_layers == None
-            remove_layers = set \
-                (i + 1
-                    for i in range(len(bpy.context.scene.layers))
-                    if bpy.context.scene.layers[i] and (i + 1 not in replace_layers)
-                )
-            add_layers = replace_layers - remove_layers
-        #end if
-        # turn on all layers I am enabling first:
-        if add_layers != None :
-            for i in add_layers :
-                bpy.context.scene.layers[i - 1] = True
-            #end for
-        #end if
-        # then turn off the ones I am disabling:
-        if remove_layers != None :
-            for i in remove_layers :
-                bpy.context.scene.layers[i - 1] = False
-            #end for
-        #end if
+        set_layers(*parse_layers_spec(layers_str))
     #end if
     if time_remap != None :
         bpy.context.scene.render.frame_map_old = time_remap[0]
@@ -697,9 +720,15 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_tempfile](prefix = "render
             out_image_name = render_out
         #end if
         if existing_action == "overwrite" or not os.path.exists(out_image_name) :
+            if use_camera_layers and len(camera_names) <= 1 :
+                set_layers_from_object(bpy.context.scene.camera)
+            #end if
             if len(camera_names) > 1 :
                 for i in range(len(camera_names)) :
                     bpy.context.scene.camera = bpy.data.objects[camera_names[i]]
+                    if use_camera_layers :
+                        set_layers_from_object(bpy.context.scene.camera)
+                    #end if
                     active_scene.render.filepath = temp_image_names[i]
                     bpy.ops.render.render(write_still = True)
                 #end for
