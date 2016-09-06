@@ -534,7 +534,7 @@ def set_layers(replace_layers = None, add_layers = None, remove_layers = None) :
     " from the active layers. Each value is a set of 0-based integer layer indices."
     # Subtle trickiness here: if this scene is the already-active
     # scene, and only one layer is active, but I am turning it
-    # off, Blender will not let me do so until some other
+    # off, Blender will ignore my attempt to do so until some other
     # layer becomes active.
     if replace_layers != None :
         assert add_layers == None and remove_layers == None
