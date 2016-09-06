@@ -487,7 +487,6 @@ def parse_layers_spec(s) :
             #end if
         #end while
     #end if
-    sys.stderr.write("layers: replace {}, add {}, remove {}\n".format(replace_layers, add_layers, remove_layers)) # debug
     return \
         replace_layers, add_layers, remove_layers
 #end parse_layers_spec
