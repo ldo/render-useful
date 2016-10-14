@@ -291,7 +291,7 @@ export RENDER_crossed="$crossed"
 export RENDER_digits="$digits"
 export RENDER_renumber="$renumber"
 
-exec "$blender" -b -P <(cat <<'EOD'
+exec "$blender" -noaudio -b -P <(cat <<'EOD'
 import sys
 import os
 import io

@@ -45,7 +45,7 @@ if [ $# != 1 ]; then
 fi
 export RENDER_blendfile="$1"
 
-exec "$blender" 5>&1 1>/dev/null -b -P <(cat <<'EOD'
+exec "$blender" -noaudio 5>&1 1>/dev/null -b -P <(cat <<'EOD'
 import sys
 import os
 import bpy
