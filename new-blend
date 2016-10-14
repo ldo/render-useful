@@ -75,7 +75,7 @@ export RENDER_enable_osl="$enable_osl"
 export RENDER_factory="$factory"
 export RENDER_load_ui="$load_ui"
 
-exec "$blender" -b -P <(cat <<'EOD'
+exec "$blender" -noaudio -b -P <(cat <<'EOD'
 import os
 import bpy
 
