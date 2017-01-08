@@ -88,7 +88,8 @@
 #          rotates the images by the specified angle in
 #          degrees (which must be a whole multiple of 90).
 #    --samples=samples
-#          the number of samples per pixel (Cycles renderer only).
+#          the number of samples per pixel (Cycles renderer, or
+#          BI renderer in Raytrace gather mode, only).
 #    --scene=scene
 #          specifies the scene to render.
 #    --time-remap=old:new
@@ -676,14 +677,26 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_worktemp](prefix = "render
     if len(camera_names) == 1 :
         bpy.context.scene.camera = bpy.data.objects[camera_names[0]]
     #end if
-    if (
-            render_samples != None
-        and
-            hasattr(bpy.context.scene, "cycles")
-        and
-            bpy.context.scene.render.engine == "CYCLES"
-    ) :
-         bpy.context.scene.cycles.samples = render_samples
+    if render_samples != None :
+        if (
+                hasattr(bpy.context.scene, "cycles")
+            and
+                bpy.context.scene.render.engine == "CYCLES"
+        ) :
+             bpy.context.scene.cycles.samples = render_samples
+        elif (
+                bpy.context.scene.render.engine == "BLENDER_RENDER"
+            and
+                bpy.context.scene.world.light_settings.gather_method == "RAYTRACE"
+        ) :
+            bpy.context.scene.world.light_settings.samples = render_samples
+        else :
+            raise ValueError \
+              (
+                "--samples value only valid for Cycles renderer, or for"
+                " BI renderer in Raytrace gather mode"
+              )
+        #end if
     #end if
     active_scene = bpy.context.scene
     active_camera = active_scene.camera
