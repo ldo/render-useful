@@ -98,6 +98,10 @@
 #          You will need to make the corresponding adjustments
 #          to the start and end frame numbers to get the same
 #          time duration.
+#    --trusted
+#          treat the .blend file as being loaded from a trusted
+#          source. This will enable autoexecution of scripts
+#          (e.g. drivers) which might have been disabled otherwise.
 #    --use-camera-layers
 #          sets the visible layers to exactly those on which the
 #          active camera is visible.
@@ -114,7 +118,7 @@
 # two eye images side-by-side, the image for the right eye on
 # the left and vice versa, for viewing as “cross-eyed” stereo.
 #
-# Copyright 2013-2016 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2013-2017 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -144,6 +148,7 @@ existing=error
 animation=
 time_remap=
 crossed=
+trusted=
 preexec=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
@@ -219,6 +224,8 @@ for ((;;)); do
         stereo_offset="$val"
     elif [ "$opt" = "time-remap" ]; then
         time_remap="$val"
+    elif [ "$opt" = "trusted" ]; then
+        trusted=1
     elif [ "$opt" = "use-camera-layers" ]; then
         use_camera_layers=1
     elif [ "$opt" = "vse" ]; then
@@ -289,6 +296,7 @@ export RENDER_height="$render_height"
 export RENDER_rotate="$rotate"
 export RENDER_preexec="$preexec"
 export RENDER_crossed="$crossed"
+export RENDER_trusted="$trusted"
 export RENDER_digits="$digits"
 export RENDER_renumber="$renumber"
 
@@ -571,7 +579,8 @@ def set_layers_from_object(obj) :
 #-
 
 blendfile = os.getenv("RENDER_blendfile")
-bpy.ops.wm.open_mainfile(filepath = blendfile)
+trusted = os.getenv("RENDER_trusted", "") != ""
+bpy.ops.wm.open_mainfile(filepath = blendfile, use_scripts = trusted)
 vse_render = os.getenv("RENDER_vse", "") != ""
 stereo_offset = get_optional_env("RENDER_stereo_offset", float)
 render_percentage = get_optional_env("RENDER_percentage", int)
