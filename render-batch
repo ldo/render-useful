@@ -36,6 +36,8 @@
 #          eg “0001.png”, “0002.png” etc.
 #    --preexec=script
 #          executes the specified Python code prior to the rendering.
+#          May be specified multiple times; the values are concatenated
+#          in sequence, separated by newlines.
 #    --existing=error|overwrite|replace-all|skip
 #          specifies what to do if an output image file already exists:
 #            error       -- signal an error and abort the render
@@ -201,7 +203,11 @@ for ((;;)); do
     elif [ "$opt" = "percent" ]; then
         render_percentage="$val"
     elif [ "$opt" = "preexec" ]; then
-        preexec="$val"
+        if [ -n "$preexec" ]; then
+            preexec="$preexec"$'\n'"$val"
+        else
+            preexec="$val"
+        fi
     elif [ "$opt" = "renumber" ]; then
         renumber="$val"
     elif [ "$opt" = "resolution" ]; then
