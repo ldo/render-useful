@@ -9,9 +9,16 @@
 # needs the Qahirah wrapper <https://github.com/ldo/qahirah> for the
 # Cairo graphics library. Invoke it as follows:
 #
-#     render-batch [options...] blendfile
+#     render-batch [options...] blendfile [dest]
 #
-# where the options are
+# where blendfile is the .blend file to render, and dest is the name
+# to give the output PNG file if rendering a single frame, or the name
+# of the directory into which to save the numbered frames for an
+# animation. dest must be specified when rendering an animation; if
+# omitted for a single frame, it defaults to the basename of the input
+# blend file with “.png” appended, saved in the current directory.
+#
+# Valid options are
 #
 #    --animation
 #          specifies that an animation sequence is to be rendered.
@@ -73,12 +80,7 @@
 #          side from its initial position to generate the image for
 #          each eye. If omitted, a single image is rendered.
 #    --out=dest
-#          the name to give the output PNG file if rendering a single
-#          frame, or the name of the directory into which to save the
-#          numbered frames for an animation. Must be specified when
-#          rendering an animation. If omitted for a single frame,
-#          defaults to the basename of the input blend file with
-#          “.png” appended, saved in the current directory.
+#          alternative way to specify the render destination.
 #    --percent=percent
 #          specifies the percentage of the render size at which to
 #          generate the images. If omitted, the default is 100 if
@@ -242,6 +244,10 @@ for ((;;)); do
 done
 if [ -z "$(type -p "$blender")" ]; then
     opterror "no such executable “$blender”"
+fi
+if [ -z "$out" -a $# = 2 ]; then
+    out="$2"
+    set -- "$1"
 fi
 if [ $# != 1 ]; then
     opterror $'Usage:\n\t'"$0 "$'<blendfile>'
