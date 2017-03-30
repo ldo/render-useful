@@ -648,24 +648,17 @@ need_worktemp = len(camera_names) > 1 or stereo_offset != None or rotate != 0
 if animation and existing_action == "replace-all" :
     # Create a temporary output directory into which to save the new frames.
     # This is not automatically deleted on error, so you at least get the
-    # partial results.
+    # partial results. If the directory already exists, then skip rendering
+    # of any frames that are already present. This allows resuming from a crash.
     if render_out.endswith("/") :
         render_out = render_out[:-1]
     #end if
-    i = 0
-    while True :
-        i += 1
-        if i == 10000 :
-            raise RuntimeError("failed to create output temp directory")
-        #end if
-        outtempdir = "{}-{:04d}".format(render_out, i)
-        try :
-            os.mkdir(outtempdir)
-            break
-        except FileExistsError :
-            pass
-        #end try
-    #end while
+    outtempdir = "{}-tmp".format(render_out)
+    try :
+        os.mkdir(outtempdir)
+    except FileExistsError :
+        pass
+    #end try
     use_render_out = outtempdir
 else :
     outtempdir = None
@@ -783,7 +776,7 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_worktemp](prefix = "render
         else :
             out_image_name = render_out
         #end if
-        if existing_action in ("overwrite", "replace-all") or not os.path.exists(out_image_name) :
+        if existing_action == "overwrite" or not os.path.exists(out_image_name) :
             if use_camera_layers and len(camera_names) <= 1 :
                 set_layers_from_object(bpy.context.scene.camera)
             #end if
@@ -898,7 +891,7 @@ with (DummyTempDir, tempfile.TemporaryDirectory)[need_worktemp](prefix = "render
                 bpy.ops.render.render(write_still = True)
             #end if
             frames_done += 1
-        elif existing_action == "skip" :
+        elif existing_action in ("skip", "replace-all") :
             sys.stdout.write("Skipped {}\n".format(out_image_name))
         else :
             raise RuntimeError("Output image “{}” already exists".format(out_image_name))
