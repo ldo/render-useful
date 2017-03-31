@@ -13,7 +13,10 @@
 # format to create: this can be .zip, .tar, or the various
 # common compressed versions of the latter.
 #
-# The one valid option is
+# Valid options are
+#    --blender=blender
+#          specifies the path to the Blender executable. Defaults to
+#          searching for the name “blender” in your PATH.
 #     --verbose
 #         display various progress messages
 #
@@ -66,15 +69,18 @@ file_exts = \
 # Mainline
 #-
 
+blender = None
 verbose = False
 opts, args = getopt.getopt \
   (
     sys.argv[1:],
     "v",
-    ["verbose"]
+    ["blender=", "verbose"]
   )
 for keyword, value in opts :
-    if keyword == "-v" or keyword == "--verbose" :
+    if keyword == "--blender" :
+        blender = value
+    elif keyword == "-v" or keyword == "--verbose" :
         verbose = True
     #end if
 #end for
@@ -119,7 +125,7 @@ while True :
     try :
         deps = subprocess.check_output \
           (
-            args = (cmd, "--full", blendfile),
+            args = (cmd,) + ((), ("--blender=%s" % blender,))[blender != None] + ("--full", blendfile),
             universal_newlines = True,
           )
         break
