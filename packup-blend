@@ -107,7 +107,6 @@ if not os.path.isfile(blendfile) :
 #end if
 nr_dots = 0
 max_dots = max((len(k.split(".")) - 1) for k in file_exts)
-sys.stderr.write("max ext dots = %d\n" % max_dots) # debug
 dotpos = len(archivefile)
 while True :
     if nr_dots == max_dots :
@@ -147,14 +146,11 @@ while True :
         #end if
     #end try
     cmd = os.path.join(os.path.split(sys.argv[0])[0], cmd)
-    sys.stderr.write("try to find ext-files as %s\n" % repr(cmd)) # debug
     try_parent_dir = True
 #end while
 deps = json.loads(deps)
-sys.stderr.write("deps = %s\n" % repr(deps)) # debug
 deps = set(i["filepath"] for i in sum((v for v in deps.values()), []))
   # set instead of list/tuple to remove any duplicates
-sys.stderr.write("deps = %s\n" % repr(deps)) # debug
 
 blendfilepath = os.path.abspath(blendfile)
 archivefilepath = os.path.abspath(archivefile)
@@ -184,7 +180,6 @@ for item in sorted(deps) : # might as well include dependencies in consistent or
     #end if
 #end for
 
-sys.stderr.write("args = %s\n" % repr(args)) # debug
 subprocess.check_call \
   (
     args = args,
