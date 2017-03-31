@@ -4,9 +4,9 @@ obtaining information about dependencies of `.blend` files.
 
 Each script has an explanation of its usage in its header.
 
-The scripts are written in Python, enclosed in a Bash wrapper that
-launches Blender and feeds it the Python script for execution within
-the application.
+The scripts are written in Python, most of them enclosed in a Bash
+wrapper that launches Blender and feeds it the Python script for
+execution within the application.
 
 Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2016 February 2
+2017 March 31
