@@ -32,23 +32,6 @@ import json
 import getopt
 
 #+
-# Useful stuff
-#-
-
-def expand_path(path, parent_dir) :
-    # normalizes path to be a full pathname, relative to parent_dir.
-    if path.startswith("//") :
-        # Blender convention for path relative to .blend file
-        path = os.path.join(parent_dir, path[2:])
-    elif not path.startswith("/") :
-        # not expecting a path relative to anything else!
-        path = None
-    #end if
-    return \
-        path
-#end expand_path
-
-#+
 # Archive types
 #-
 
