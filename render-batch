@@ -35,6 +35,11 @@
 #          specifies the name of the camera to use. May be specified
 #          more than once, to render images from multiple cameras
 #          across or down (depending on --arrange).
+#    --crash-protect
+#          spawns a separate child process to do the rendering,
+#          with automatic resume after a crash. Currently only
+#          supported together with --animation and --existing=replace-all.
+#          (Best considered experimental for now.)
 #    --digits=digits
 #          for an animation, the number of digits for for formatting
 #          frame numbers to use in names of output frame files. If
@@ -150,6 +155,7 @@ rotate=
 out=
 existing=error
 animation=
+crash_protect=
 time_remap=
 crossed=
 trusted=
@@ -187,6 +193,8 @@ for ((;;)); do
     elif [ "$opt" = "camera" ]; then
         nr_cameras=$((nr_cameras + 1))
         export RENDER_camera_${nr_cameras}="$val"
+    elif [ "$opt" = "crash-protect" ]; then
+        crash_protect=1
     elif [ "$opt" = "crossed" ]; then
         crossed=1
     elif [ "$opt" = "digits" ]; then
@@ -270,6 +278,11 @@ fi
 if [ -n "$use_camera_layers" -a -n "$layers" ]; then
     opterror "cannot specify --use-camera-layers with --layers"
 fi
+if [ -n "$crash_protect" ]; then
+    if [ -z "$animation" -o "$existing" != "replace-all" ]; then
+        opterror "--crash-protect currently only allowed with --animation and --existing=replace-all"
+    fi
+fi
 
 # pass parameters to Python script in environment variables to avoid
 # problems with special characters
@@ -287,6 +300,7 @@ else
     export RENDER_frame_start="$frame_spec"
 fi
 export RENDER_animation="$animation"
+export RENDER_crash_protect="$crash_protect"
 export RENDER_time_remap="$time_remap"
 export RENDER_vse="$vse"
 if [ -n "$out" ]; then
@@ -317,6 +331,7 @@ import sys
 import os
 import io
 import time
+import signal
 import tempfile
 import shutil
 import bpy
@@ -605,6 +620,7 @@ else :
     rotate = 0
 #end if
 animation = os.getenv("RENDER_animation", "") != ""
+crash_protect = os.getenv("RENDER_crash_protect", "") != ""
 time_remap = get_optional_env("RENDER_time_remap")
 if time_remap != None :
     time_remap = tuple(int(i) for i in time_remap.split(":", 1))
@@ -661,260 +677,302 @@ if animation and existing_action == "replace-all" :
     #end try
     use_render_out = outtempdir
 else :
+    crash_protect = False # not supported for now
     outtempdir = None
     use_render_out = render_out
 #end if
 
-with (DummyTempDir, tempfile.TemporaryDirectory)[need_worktemp](prefix = "render-") as tempdir :
-    temp_image_names = None
-    if len(camera_names) > 1 :
-        temp_image_names = tuple("camera_{}".format(i + 1) for i in range(len(camera_names)))
-    elif stereo_offset != None :
-        temp_image_names = ("left", "right")
-    elif rotate != 0 :
-        temp_image_names = ("unrotated",)
-    #end if
-    if temp_image_names != None :
-        temp_image_names = tuple(os.path.join(tempdir, name) + ".png" for name in temp_image_names)
-    #end if
-
-    if scene_name != None :
-        bpy.context.screen.scene = bpy.data.scenes[scene_name]
-    #end if
-    if layers_str != None :
-        set_layers(*parse_layers_spec(layers_str))
-    #end if
-    if time_remap != None :
-        bpy.context.scene.render.frame_map_old = time_remap[0]
-        bpy.context.scene.render.frame_map_new = time_remap[1]
-    #end if
-    if len(camera_names) == 1 :
-        bpy.context.scene.camera = bpy.data.objects[camera_names[0]]
-    #end if
-    if render_samples != None :
-        if (
-                hasattr(bpy.context.scene, "cycles")
-            and
-                bpy.context.scene.render.engine == "CYCLES"
-        ) :
-             bpy.context.scene.cycles.samples = render_samples
-        elif (
-                bpy.context.scene.render.engine == "BLENDER_RENDER"
-            and
-                bpy.context.scene.world.light_settings.gather_method == "RAYTRACE"
-        ) :
-            bpy.context.scene.world.light_settings.samples = render_samples
-        else :
-            raise ValueError \
-              (
-                "--samples value only valid for Cycles renderer, or for"
-                " BI renderer in Raytrace gather mode"
-              )
-        #end if
-    #end if
-    active_scene = bpy.context.scene
-    active_camera = active_scene.camera
-    if not vse_render :
-        orig_camera_matrix = active_camera.matrix_basis.copy()
-    #end if
-
-    if frame_start == None :
-        frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
-    #end if
-    if animation :
-        if frame_end == None :
-            frame_end = active_scene.frame_end
-        #end if
-        if frame_step == None :
-            frame_step = active_scene.frame_step
-        #end if
+if crash_protect :
+    frame_count = len(os.listdir(outtempdir))
+    crash_count = 0
+#end if
+while True :
+    if crash_protect :
+        child_pid = os.fork()
     else :
-        frame_end = frame_start
-        frame_step = 1
+        child_pid = 0
     #end if
-    if render_percentage != None :
-        active_scene.render.resolution_percentage = render_percentage
-    #end if
-    if render_width != None :
-        active_scene.render.resolution_x = render_width
-    #end if
-    if render_height != None :
-        active_scene.render.resolution_y = render_height
-    #end if
-
-    active_scene.render.image_settings.file_format = "PNG"
-    compose_offset = None
-    if preexec != None :
-        exec(preexec)
-    #end if
-    start_time = time.time()
-    frames_done = 0
-    if animation :
-        if frame_renumber != None :
-            frame_nr_adjust = frame_renumber - frame_start
-        else :
-            frame_nr_adjust = 0
-        #end if
-        if frame_end < frame_start :
-            raise ValueError("invalid frame number range")
-        #end if
-        if frame_start + frame_nr_adjust <= 0 :
-            raise ValueError("frame numbers go non-positive")
-        #end if
-        if frame_end + frame_nr_adjust >= 10 ** frame_digits :
-            raise ValueError("not enough digits for frame numbers")
-        #end if
-    #end if
-    for frame_nr in range(frame_start, frame_end + 1, frame_step) :
-        active_scene.frame_set(frame_nr)
-        if animation :
-            out_image_name = os.path.join \
-              (
-                use_render_out,
-                "{:0{digits}d}.png".format(frame_nr + frame_nr_adjust, digits = frame_digits)
-              )
-        else :
-            out_image_name = render_out
-        #end if
-        if existing_action == "overwrite" or not os.path.exists(out_image_name) :
-            if use_camera_layers and len(camera_names) <= 1 :
-                set_layers_from_object(bpy.context.scene.camera)
-            #end if
+    if child_pid == 0 :
+        with (DummyTempDir, tempfile.TemporaryDirectory)[need_worktemp](prefix = "render-") as tempdir :
+            temp_image_names = None
             if len(camera_names) > 1 :
-                for i in range(len(camera_names)) :
-                    bpy.context.scene.camera = bpy.data.objects[camera_names[i]]
-                    if use_camera_layers :
+                temp_image_names = tuple("camera_{}".format(i + 1) for i in range(len(camera_names)))
+            elif stereo_offset != None :
+                temp_image_names = ("left", "right")
+            elif rotate != 0 :
+                temp_image_names = ("unrotated",)
+            #end if
+            if temp_image_names != None :
+                temp_image_names = tuple(os.path.join(tempdir, name) + ".png" for name in temp_image_names)
+            #end if
+
+            if scene_name != None :
+                bpy.context.screen.scene = bpy.data.scenes[scene_name]
+            #end if
+            if layers_str != None :
+                set_layers(*parse_layers_spec(layers_str))
+            #end if
+            if time_remap != None :
+                bpy.context.scene.render.frame_map_old = time_remap[0]
+                bpy.context.scene.render.frame_map_new = time_remap[1]
+            #end if
+            if len(camera_names) == 1 :
+                bpy.context.scene.camera = bpy.data.objects[camera_names[0]]
+            #end if
+            if render_samples != None :
+                if (
+                        hasattr(bpy.context.scene, "cycles")
+                    and
+                        bpy.context.scene.render.engine == "CYCLES"
+                ) :
+                     bpy.context.scene.cycles.samples = render_samples
+                elif (
+                        bpy.context.scene.render.engine == "BLENDER_RENDER"
+                    and
+                        bpy.context.scene.world.light_settings.gather_method == "RAYTRACE"
+                ) :
+                    bpy.context.scene.world.light_settings.samples = render_samples
+                else :
+                    raise ValueError \
+                      (
+                        "--samples value only valid for Cycles renderer, or for"
+                        " BI renderer in Raytrace gather mode"
+                      )
+                #end if
+            #end if
+            active_scene = bpy.context.scene
+            active_camera = active_scene.camera
+            if not vse_render :
+                orig_camera_matrix = active_camera.matrix_basis.copy()
+            #end if
+
+            if frame_start == None :
+                frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
+            #end if
+            if animation :
+                if frame_end == None :
+                    frame_end = active_scene.frame_end
+                #end if
+                if frame_step == None :
+                    frame_step = active_scene.frame_step
+                #end if
+            else :
+                frame_end = frame_start
+                frame_step = 1
+            #end if
+            if render_percentage != None :
+                active_scene.render.resolution_percentage = render_percentage
+            #end if
+            if render_width != None :
+                active_scene.render.resolution_x = render_width
+            #end if
+            if render_height != None :
+                active_scene.render.resolution_y = render_height
+            #end if
+
+            active_scene.render.image_settings.file_format = "PNG"
+            compose_offset = None
+            if preexec != None :
+                exec(preexec)
+            #end if
+            start_time = time.time()
+            frames_done = 0
+            if animation :
+                if frame_renumber != None :
+                    frame_nr_adjust = frame_renumber - frame_start
+                else :
+                    frame_nr_adjust = 0
+                #end if
+                if frame_end < frame_start :
+                    raise ValueError("invalid frame number range")
+                #end if
+                if frame_start + frame_nr_adjust <= 0 :
+                    raise ValueError("frame numbers go non-positive")
+                #end if
+                if frame_end + frame_nr_adjust >= 10 ** frame_digits :
+                    raise ValueError("not enough digits for frame numbers")
+                #end if
+            #end if
+            for frame_nr in range(frame_start, frame_end + 1, frame_step) :
+                active_scene.frame_set(frame_nr)
+                if animation :
+                    out_image_name = os.path.join \
+                      (
+                        use_render_out,
+                        "{:0{digits}d}.png".format(frame_nr + frame_nr_adjust, digits = frame_digits)
+                      )
+                else :
+                    out_image_name = render_out
+                #end if
+                if existing_action == "overwrite" or not os.path.exists(out_image_name) :
+                    if use_camera_layers and len(camera_names) <= 1 :
                         set_layers_from_object(bpy.context.scene.camera)
                     #end if
-                    active_scene.render.filepath = temp_image_names[i]
-                    bpy.ops.render.render(write_still = True)
-                #end for
-                for i in range(len(temp_image_names)) :
-                    image = get_image_from_png(temp_image_names[i])
-                    if i == 0 :
-                        image_dimensions = image.dimensions
-                        compose_step = Vector \
-                          (
-                            (0, 1)[arrange == "across"],
-                            (0, 1)[arrange == "down"]
-                          )
-                        if arrange_limit != None and arrange_limit < len(temp_image_names) :
-                            compose_step_2 = Vector(compose_step.y, compose_step.x)
-                            composite_steps = \
-                                (
-                                    compose_step * arrange_limit
-                                +
-                                        compose_step_2
+                    if len(camera_names) > 1 :
+                        for i in range(len(camera_names)) :
+                            bpy.context.scene.camera = bpy.data.objects[camera_names[i]]
+                            if use_camera_layers :
+                                set_layers_from_object(bpy.context.scene.camera)
+                            #end if
+                            active_scene.render.filepath = temp_image_names[i]
+                            bpy.ops.render.render(write_still = True)
+                        #end for
+                        for i in range(len(temp_image_names)) :
+                            image = get_image_from_png(temp_image_names[i])
+                            if i == 0 :
+                                image_dimensions = image.dimensions
+                                compose_step = Vector \
+                                  (
+                                    (0, 1)[arrange == "across"],
+                                    (0, 1)[arrange == "down"]
+                                  )
+                                if arrange_limit != None and arrange_limit < len(temp_image_names) :
+                                    compose_step_2 = Vector(compose_step.y, compose_step.x)
+                                    composite_steps = \
+                                        (
+                                            compose_step * arrange_limit
+                                        +
+                                                compose_step_2
+                                            *
+                                                ((len(temp_image_names) + arrange_limit - 1) // arrange_limit)
+                                        )
+                                else :
+                                    compose_step_2 = None
+                                    composite_steps = Vector(1, 1) + compose_step * (len(temp_image_names) - 1)
+                                #end if
+                                concat = qah.ImageSurface.create \
+                                  (
+                                    format = CAIRO.FORMAT_RGB24,
+                                    dimensions = image_dimensions * composite_steps
+                                  )
+                                compose = \
+                                    (qah.Context.create(concat)
+                                        .set_operator(CAIRO.OPERATOR_SOURCE)
+                                        .set_source_colour(Colour.grey(0, 0))
+                                        .paint()
+                                    )
+                            #end if
+                            if compose_step_2 != None :
+                                compose_pos = \
+                                    (
+                                        image_dimensions
                                     *
-                                        ((len(temp_image_names) + arrange_limit - 1) // arrange_limit)
+                                        (
+                                            compose_step * (i % arrange_limit)
+                                        +
+                                            compose_step_2 * (i // arrange_limit)
+                                        )
+                                    )
+                            else :
+                                compose_pos = image_dimensions * compose_step * i
+                            #end if
+                            compose.set_source_surface(image, compose_pos)
+                            compose.rectangle(Rect.from_dimensions(image_dimensions) + compose_pos)
+                            compose.fill()
+                        #end for
+                        concat.flush()
+                        concat.write_to_png(out_image_name)
+                    elif stereo_offset != None :
+                        for sign in (-1, +1) : # left eye, then right eye
+                            active_scene.render.filepath = temp_image_names[sign > 0]
+                            active_camera.matrix_basis = \
+                                (
+                                    orig_camera_matrix
+                                *
+                                    mathutils.Matrix.Translation(mathutils.Vector((sign * stereo_offset, 0, 0)))
                                 )
-                        else :
-                            compose_step_2 = None
-                            composite_steps = Vector(1, 1) + compose_step * (len(temp_image_names) - 1)
+                            bpy.ops.render.render(write_still = True)
+                        #end for
+                        left_eye = get_image_from_png(temp_image_names[0])
+                        right_eye = get_image_from_png(temp_image_names[1])
+                        if crossed :
+                            left_eye, right_eye = right_eye, left_eye
                         #end if
-                        concat = qah.ImageSurface.create \
+                        if compose_offset == None :
+                            compose_offset = left_eye.width
+                            image_height = left_eye.height
+                        #end if
+                        stereo = qah.ImageSurface.create \
                           (
                             format = CAIRO.FORMAT_RGB24,
-                            dimensions = image_dimensions * composite_steps
+                            dimensions = (compose_offset * 2, image_height)
                           )
-                        compose = \
-                            (qah.Context.create(concat)
-                                .set_operator(CAIRO.OPERATOR_SOURCE)
-                                .set_source_colour(Colour.grey(0, 0))
-                                .paint()
-                            )
-                    #end if
-                    if compose_step_2 != None :
-                        compose_pos = \
-                            (
-                                image_dimensions
-                            *
-                                (
-                                    compose_step * (i % arrange_limit)
-                                +
-                                    compose_step_2 * (i // arrange_limit)
-                                )
-                            )
-                    else :
-                        compose_pos = image_dimensions * compose_step * i
-                    #end if
-                    compose.set_source_surface(image, compose_pos)
-                    compose.rectangle(Rect.from_dimensions(image_dimensions) + compose_pos)
-                    compose.fill()
-                #end for
-                concat.flush()
-                concat.write_to_png(out_image_name)
-            elif stereo_offset != None :
-                for sign in (-1, +1) : # left eye, then right eye
-                    active_scene.render.filepath = temp_image_names[sign > 0]
-                    active_camera.matrix_basis = \
-                        (
-                            orig_camera_matrix
-                        *
-                            mathutils.Matrix.Translation(mathutils.Vector((sign * stereo_offset, 0, 0)))
+                        (qah.Context.create(stereo)
+                            .set_operator(CAIRO.OPERATOR_SOURCE)
+                            .set_source_colour(Colour.grey(0, 0))
+                            .paint()
+                            .set_source_surface(right_eye, (0, 0))
+                            .rectangle(Rect(0, 0, compose_offset, image_height))
+                            .fill()
+                            .set_source_surface(left_eye, (compose_offset, 0))
+                            .rectangle(Rect(compose_offset, 0, compose_offset, image_height))
+                            .fill()
                         )
-                    bpy.ops.render.render(write_still = True)
-                #end for
-                left_eye = get_image_from_png(temp_image_names[0])
-                right_eye = get_image_from_png(temp_image_names[1])
-                if crossed :
-                    left_eye, right_eye = right_eye, left_eye
+                        stereo.flush()
+                        stereo.write_to_png(out_image_name)
+                    elif rotate != 0 :
+                        active_scene.render.filepath = temp_image_names[0]
+                        bpy.ops.render.render(write_still = True)
+                        get_image_from_png(temp_image_names[0]).write_to_png(out_image_name)
+                    else :
+                        active_scene.render.filepath = out_image_name
+                        bpy.ops.render.render(write_still = True)
+                    #end if
+                    frames_done += 1
+                elif existing_action in ("skip", "replace-all") :
+                    sys.stdout.write("Skipped {}\n".format(out_image_name))
+                else :
+                    raise RuntimeError("Output image “{}” already exists".format(out_image_name))
                 #end if
-                if compose_offset == None :
-                    compose_offset = left_eye.width
-                    image_height = left_eye.height
+            #end for
+            if outtempdir != None :
+                if os.path.islink(render_out) :
+                    os.remove(render_out)
+                elif os.path.isdir(render_out) :
+                    shutil.rmtree(render_out)
                 #end if
-                stereo = qah.ImageSurface.create \
-                  (
-                    format = CAIRO.FORMAT_RGB24,
-                    dimensions = (compose_offset * 2, image_height)
-                  )
-                (qah.Context.create(stereo)
-                    .set_operator(CAIRO.OPERATOR_SOURCE)
-                    .set_source_colour(Colour.grey(0, 0))
-                    .paint()
-                    .set_source_surface(right_eye, (0, 0))
-                    .rectangle(Rect(0, 0, compose_offset, image_height))
-                    .fill()
-                    .set_source_surface(left_eye, (compose_offset, 0))
-                    .rectangle(Rect(compose_offset, 0, compose_offset, image_height))
-                    .fill()
-                )
-                stereo.flush()
-                stereo.write_to_png(out_image_name)
-            elif rotate != 0 :
-                active_scene.render.filepath = temp_image_names[0]
-                bpy.ops.render.render(write_still = True)
-                get_image_from_png(temp_image_names[0]).write_to_png(out_image_name)
-            else :
-                active_scene.render.filepath = out_image_name
-                bpy.ops.render.render(write_still = True)
+                os.rename(outtempdir, render_out)
             #end if
-            frames_done += 1
-        elif existing_action in ("skip", "replace-all") :
-            sys.stdout.write("Skipped {}\n".format(out_image_name))
-        else :
-            raise RuntimeError("Output image “{}” already exists".format(out_image_name))
-        #end if
-    #end for
-    if outtempdir != None :
-        if os.path.islink(render_out) :
-            os.remove(render_out)
-        elif os.path.isdir(render_out) :
-            shutil.rmtree(render_out)
-        #end if
-        os.rename(outtempdir, render_out)
-    #end if
-    now = time.time()
-    sys.stdout.write \
-      (
-            "Rendered {} {} in {}\n".format
+            now = time.time()
+            sys.stdout.write \
               (
-                frames_done,
-                ("frame", "frames")[frames_done != 1],
-                format_elapsed(now - start_time)
+                    "Rendered {} {} in {}\n".format
+                      (
+                        frames_done,
+                        ("frame", "frames")[frames_done != 1],
+                        format_elapsed(now - start_time)
+                      )
               )
-      )
-#end with
+        #end with
+        if crash_protect :
+            # Blender seems to get confused over threading in the child process,
+            # and hangs instead of quitting, so seems simplest to just kill myself...
+            os.kill(os.getpid(), signal.SIGTERM)
+        else :
+            break
+        #end if
+    else :
+        status = os.waitpid(child_pid, 0)[1]
+        sys.stdout.write("Child termination status = %d\n" % status)
+        if not os.path.isdir(outtempdir) :
+            # looks like render has completed successfully
+            if crash_count != 0 :
+                sys.stdout.write("Completed after %d crashes.\n" % crash_count)
+            #end if
+            break
+        #end if
+        # outtempdir still exists, assume crash
+        crash_count += 1
+        new_frame_count = len(os.listdir(outtempdir))
+        if new_frame_count <= frame_count :
+            sys.stdout.write("Giving up after %d crashes.\n" % crash_count)
+            break
+        #end if
+        # only continue as long as actual progress is being made
+        frame_count = new_frame_count
+        sys.stdout.write("Crash restart %d\n" % crash_count)
+    #end if
+#end while
+
 EOD
 )
