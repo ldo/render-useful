@@ -38,7 +38,8 @@
 #    --crash-protect
 #          spawns a separate child process to do the rendering,
 #          with automatic resume after a crash. Currently only
-#          supported together with --animation and --existing=replace-all.
+#          supported together with --animation and
+#          --existing=(replace-all|skip).
 #          (Best considered experimental for now.)
 #    --digits=digits
 #          for an animation, the number of digits for for formatting
@@ -279,8 +280,8 @@ if [ -n "$use_camera_layers" -a -n "$layers" ]; then
     opterror "cannot specify --use-camera-layers with --layers"
 fi
 if [ -n "$crash_protect" ]; then
-    if [ -z "$animation" -o "$existing" != "replace-all" ]; then
-        opterror "--crash-protect currently only allowed with --animation and --existing=replace-all"
+    if [ -z "$animation" -o \( "$existing" != "replace-all" -a "$existing" != "skip" \) ]; then
+        opterror "--crash-protect currently only allowed with --animation and --existing=replace-all|skip"
     fi
 fi
 
@@ -408,6 +409,13 @@ def format_elapsed(interval, long_form = False, seconds_places = 0) :
     return \
         result
 #end format_elapsed
+
+def frame_name(frame_nr) :
+    "computes the frame filename for the specified frame number. Assumes frame_nr_adjust" \
+    " and frame_digits have been initialized."
+    return \
+        "{:0{digits}d}.png".format(frame_nr + frame_nr_adjust, digits = frame_digits)
+#end frame_name
 
 def get_optional_env(varname, convert = None) :
     # returns the value of the specified environment variable, converted
@@ -659,6 +667,38 @@ if arrange != None :
 assert not vse_render or stereo_offset == None and len(camera_names) == 0
 layers_str = os.getenv("RENDER_layers", None)
 use_camera_layers = os.getenv("RENDER_use_camera_layers", "") != ""
+active_scene = bpy.context.scene
+
+if animation :
+    if frame_start == None :
+        frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
+    #end if
+    if animation :
+        if frame_end == None :
+            frame_end = active_scene.frame_end
+        #end if
+        if frame_step == None :
+            frame_step = active_scene.frame_step
+        #end if
+    else :
+        frame_end = frame_start
+        frame_step = 1
+    #end if
+    if frame_renumber != None :
+        frame_nr_adjust = frame_renumber - frame_start
+    else :
+        frame_nr_adjust = 0
+    #end if
+    if frame_end < frame_start :
+        raise ValueError("invalid frame number range")
+    #end if
+    if frame_start + frame_nr_adjust <= 0 :
+        raise ValueError("frame numbers go non-positive")
+    #end if
+    if frame_end + frame_nr_adjust >= 10 ** frame_digits :
+        raise ValueError("not enough digits for frame numbers")
+    #end if
+#end if
 
 need_worktemp = len(camera_names) > 1 or stereo_offset != None or rotate != 0
 if animation and existing_action == "replace-all" :
@@ -677,13 +717,21 @@ if animation and existing_action == "replace-all" :
     #end try
     use_render_out = outtempdir
 else :
-    crash_protect = False # not supported for now
+    if existing_action != "skip" :
+        crash_protect = False # not supported for now
+    #end if
     outtempdir = None
     use_render_out = render_out
 #end if
 
 if crash_protect :
-    frame_count = len(os.listdir(outtempdir))
+    frames_undone = \
+        (
+            set(frame_name(f) for f in range(frame_start, frame_end + 1, frame_step))
+        -
+            set(os.listdir(use_render_out))
+        )
+    sys.stdout.write("initial frames_undone = %s\n" % repr(frames_undone)) # debug
     crash_count = 0
 #end if
 while True :
@@ -740,26 +788,11 @@ while True :
                       )
                 #end if
             #end if
-            active_scene = bpy.context.scene
             active_camera = active_scene.camera
             if not vse_render :
                 orig_camera_matrix = active_camera.matrix_basis.copy()
             #end if
 
-            if frame_start == None :
-                frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
-            #end if
-            if animation :
-                if frame_end == None :
-                    frame_end = active_scene.frame_end
-                #end if
-                if frame_step == None :
-                    frame_step = active_scene.frame_step
-                #end if
-            else :
-                frame_end = frame_start
-                frame_step = 1
-            #end if
             if render_percentage != None :
                 active_scene.render.resolution_percentage = render_percentage
             #end if
@@ -777,30 +810,10 @@ while True :
             #end if
             start_time = time.time()
             frames_done = 0
-            if animation :
-                if frame_renumber != None :
-                    frame_nr_adjust = frame_renumber - frame_start
-                else :
-                    frame_nr_adjust = 0
-                #end if
-                if frame_end < frame_start :
-                    raise ValueError("invalid frame number range")
-                #end if
-                if frame_start + frame_nr_adjust <= 0 :
-                    raise ValueError("frame numbers go non-positive")
-                #end if
-                if frame_end + frame_nr_adjust >= 10 ** frame_digits :
-                    raise ValueError("not enough digits for frame numbers")
-                #end if
-            #end if
             for frame_nr in range(frame_start, frame_end + 1, frame_step) :
                 active_scene.frame_set(frame_nr)
                 if animation :
-                    out_image_name = os.path.join \
-                      (
-                        use_render_out,
-                        "{:0{digits}d}.png".format(frame_nr + frame_nr_adjust, digits = frame_digits)
-                      )
+                    out_image_name = os.path.join(use_render_out, frame_name(frame_nr))
                 else :
                     out_image_name = render_out
                 #end if
@@ -954,23 +967,28 @@ while True :
     else :
         status = os.waitpid(child_pid, 0)[1]
         sys.stdout.write("Child termination status = %d\n" % status)
-        if not os.path.isdir(outtempdir) :
+        if existing_action == "replace-all" and not os.path.isdir(outtempdir) :
+            new_frames_undone = set()
+        else :
+            new_frames_undone = frames_undone - set(os.listdir(use_render_out))
+        #end if
+        if len(new_frames_undone) == 0 :
             # looks like render has completed successfully
             if crash_count != 0 :
                 sys.stdout.write("Completed after %d crashes.\n" % crash_count)
             #end if
             break
         #end if
-        # outtempdir still exists, assume crash
+        # not finished nicely, assume crash
         crash_count += 1
-        new_frame_count = len(os.listdir(outtempdir))
-        if new_frame_count <= frame_count :
+        # only continue as long as actual progress is being made
+        if len(new_frames_undone) == len(frames_undone) :
             sys.stdout.write("Giving up after %d crashes.\n" % crash_count)
             break
         #end if
-        # only continue as long as actual progress is being made
-        frame_count = new_frame_count
+        frames_undone = new_frames_undone
         sys.stdout.write("Crash restart %d\n" % crash_count)
+        sys.stdout.write("frames_undone = %s\n" % repr(frames_undone)) # debug
     #end if
 #end while
 
