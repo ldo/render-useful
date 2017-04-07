@@ -30,6 +30,7 @@
 
 import sys
 import os
+import enum
 import subprocess
 import json
 import getopt
@@ -38,12 +39,22 @@ import getopt
 # Archive types
 #-
 
+@enum.unique
+class DOUBLE_DASH(enum.Enum) :
+    "where to put a “--” on an archiver’s command line to prevent interpretation" \
+    " of filenames that might begin with dashes as options."
+    NOT_SUPPORTED = 0
+    BEFORE_FILES = 1
+    AFTER_SUFFIX_ARG = 2
+#end DOUBLE_DASH
+
 archivers = \
     { # for constructing archive-creation commands
         "tar" :
             {
                 "cmd" : ("tar", "--create"),
                 "cmd_suffix" : ("--file",),
+                "double_dash" : DOUBLE_DASH.AFTER_SUFFIX_ARG,
                 "subtype_opts" :
                     lambda subtype : {"gzip" : ("--gzip",), "bzip2" : ("--bzip2",)}[subtype],
                 "verbose" : ("--verbose",),
@@ -51,6 +62,7 @@ archivers = \
         "zip" :
             {
                 "cmd" : ("zip",),
+                "double_dash" : DOUBLE_DASH.NOT_SUPPORTED,
                 "verbose" : ("--verbose",),
             },
     }
@@ -157,12 +169,25 @@ if "subtype" in choose :
 if "cmd_suffix" in archiver :
     args.extend(list(archiver["cmd_suffix"]))
 #end if
+if archiver["double_dash"] == DOUBLE_DASH.BEFORE_FILES :
+    args.append("--")
+#end if
 args.append(archivefilepath)
+if archiver["double_dash"] == DOUBLE_DASH.AFTER_SUFFIX_ARG :
+    args.append("--")
+#end if
 args.append(os.path.split(blendfilepath)[1])
   # .blend file is always at root of unpacked directory tree
 for item in sorted(deps) : # might as well include dependencies in consistent order
     if item.startswith("//") :
-        args.append(item[2:])
+        item = item[2:]
+        args.append \
+          (
+                ("", "./")
+                    [archiver["double_dash"] == DOUBLE_DASH.NOT_SUPPORTED and item.startswith("-")]
+            +
+                item
+          )
           # keep relative paths relative in archive
     else :
         pass # ignore absolute paths and paths with no leading “/”
