@@ -3,11 +3,12 @@
 # This script invokes Blender to render the specified .blend file. It
 # allows the specification of various rendering settings directly from
 # the command line, overriding settings from the .blend file. It also
-# has the option for stereoscopic rendering, by doing the render twice,
-# offsetting the camera along its local X axis, and combining the
-# resulting images to produce a stereo pair. Besides Blender, it also
-# needs the Qahirah wrapper <https://github.com/ldo/qahirah> for the
-# Cairo graphics library. Invoke it as follows:
+# has the option for stereoscopic rendering, by doing the render
+# twice, offsetting the camera along its local X axis, and combining
+# the resulting images to produce a stereo pair. Besides Blender, it
+# also needs the Qahirah wrapper (<https://gitlab.com/ldo/qahirah> or
+# <https://github.com/ldo/qahirah>) for the Cairo graphics library.
+# Invoke it as follows:
 #
 #     render-batch [options...] blendfile [dest]
 #
