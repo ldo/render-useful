@@ -52,7 +52,7 @@ archivers = \
     { # for constructing archive-creation commands
         "tar" :
             {
-                "cmd" : ("tar", "--create"),
+                "cmd" : ("tar", "--create", "--dereference"),
                 "cmd_suffix" : ("--file",),
                 "double_dash" : DOUBLE_DASH.AFTER_SUFFIX_ARG,
                 "subtype_opts" :
