@@ -179,7 +179,7 @@ if archiver["double_dash"] == DOUBLE_DASH.AFTER_SUFFIX_ARG :
 args.append(os.path.split(blendfilepath)[1])
   # .blend file is always at root of unpacked directory tree
 for item in sorted(deps) : # might as well include dependencies in consistent order
-    if item.startswith("//") :
+    if item.startswith("//") and not item.startswith("//../") :
         item = item[2:]
         args.append \
           (
@@ -190,7 +190,7 @@ for item in sorted(deps) : # might as well include dependencies in consistent or
           )
           # keep relative paths relative in archive
     else :
-        pass # ignore absolute paths and paths with no leading “/”
+        pass # ignore up-level paths, absolute paths and paths with no leading “/”
     #end if
 #end for
 
