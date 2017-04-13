@@ -670,21 +670,21 @@ layers_str = os.getenv("RENDER_layers", None)
 use_camera_layers = os.getenv("RENDER_use_camera_layers", "") != ""
 active_scene = bpy.context.scene
 
+if frame_start == None :
+    frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
+#end if
 if animation :
-    if frame_start == None :
-        frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
+    if frame_end == None :
+        frame_end = active_scene.frame_end
     #end if
-    if animation :
-        if frame_end == None :
-            frame_end = active_scene.frame_end
-        #end if
-        if frame_step == None :
-            frame_step = active_scene.frame_step
-        #end if
-    else :
-        frame_end = frame_start
-        frame_step = 1
+    if frame_step == None :
+        frame_step = active_scene.frame_step
     #end if
+else :
+    frame_end = frame_start
+    frame_step = 1
+#end if
+if animation :
     if frame_renumber != None :
         frame_nr_adjust = frame_renumber - frame_start
     else :
