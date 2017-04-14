@@ -1,0 +1,245 @@
+#!/bin/bash
+#+
+# This script invokes Blender to load and render the specified .blend file.
+# It should be set up to use compositor nodes, with one or more input image
+# nodes. The script allows the specification of input images for these
+# nodes by name, and saves the output to a specified image file.
+#
+# Copyright 2017 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
+#-
+
+opterror()
+  {
+    echo "$0: $1" 1>&2
+    exit 3
+  } # opterror
+
+blender=blender
+scene=
+nr_inputs=0
+render_percentage=
+render_width=
+render_height=
+out=
+existing=error
+trusted=
+for ((;;)); do
+    if [ "${1:0:2}" != "--" ]; then
+        break
+    fi
+    if [ "$1" == "--" ]; then
+        shift
+        break
+    fi
+    opt="${1:2:${#1}}"
+    shift
+    val="${opt#*=}"
+    opt="${opt%%=*}"
+    if [ "$opt" = "blender" ]; then
+        blender="$val"
+    elif [ "$opt" = "existing" ]; then
+        if [ "$val" != "error" -a "$val" != "overwrite" ]; then
+            opterror "--existing value must be “error” or “overwrite”"
+        fi
+        existing="$val"
+    elif [ "$opt" = "input" ]; then
+        nr_inputs=$((nr_inputs + 1))
+        input_name="${val%%=*}"
+        input_file="${val#*=}"
+        export RENDER_input_name_${nr_inputs}="$input_name"
+        export RENDER_input_file_${nr_inputs}="$input_file"
+    elif [ "$opt" = "out" ]; then
+        out="$val"
+    elif [ "$opt" = "percent" ]; then
+        render_percentage="$val"
+    elif [ "$opt" = "resolution" ]; then
+        IFS=':' read -a items <<<"$val"
+        render_width="${items[0]}"
+        render_height="${items[1]}"
+        if [ -z "$render_percentage" ]; then
+            render_percentage=100
+        fi
+    elif [ "$opt" = "scene" ]; then
+        scene="$val"
+    elif [ "$opt" = "trusted" ]; then
+        trusted=1
+    else
+        opterror "bad option $opt"
+    fi
+done
+if [ -z "$(type -p "$blender")" ]; then
+    opterror "no such executable “$blender”"
+fi
+if [ -z "$out" -a $# = 2 ]; then
+    out="$2"
+    set -- "$1"
+fi
+if [ $# != 1 ]; then
+    opterror $'Usage:\n\t'"$0 "$'<blendfile>'
+fi
+blendfile="$1"
+export RENDER_blendfile="$blendfile"
+
+# pass parameters to Python script in environment variables to avoid
+# problems with special characters
+if [ $nr_inputs -ne 0 ]; then
+    unset RENDER_input_name_$((nr_inputs + 1)) # just in case
+fi
+export RENDER_percentage="$render_percentage"
+export RENDER_width="$render_width"
+export RENDER_height="$render_height"
+export RENDER_out="$out"
+export RENDER_existing="$existing"
+export RENDER_scene="$scene"
+export RENDER_trusted="$trusted"
+
+exec "$blender" -noaudio -b -P <(cat <<'EOD'
+import sys
+import os
+import time
+import bpy
+import mathutils
+
+
+try :
+    os.wait() # gobble zombie child of shell which was previously in this process slot
+except ChildProcessError :
+    # can happen intermittently?
+    pass
+#end try
+
+#+
+# Useful stuff
+#-
+
+units = \
+    ( # sequence of quadruples, first element is multiplier to apply to
+      # previous quadruple, or nr of seconds for first quadruple, second
+      # element is abbreviated unit name, third element is singular unit
+      # name, fourth element is plural unit name.
+        (1, "s", "second", "seconds"),
+        (60, "m", "minute", "minutes"),
+        (60, "h", "hour", "hours"),
+        (24, "d", "day", "days"),
+        (7, "wk", "week", "weeks"),
+    )
+
+def format_elapsed(interval, long_form = False, seconds_places = 0) :
+    "returns an accurate indication of the specified interval in seconds." \
+    " long_form indicates whether to display the units in long form or short form," \
+    " while seconds_places indicates the number of decimal places to use for showing" \
+    " the seconds."
+    unitindex = 0
+    result = ""
+    while True :
+        if unitindex == len(units) :
+            break
+        unit = units[unitindex]
+        if unitindex + 1 < len(units) :
+            factor = units[unitindex + 1][0]
+            place = interval % factor
+        else :
+            factor = None
+            place = interval
+        #end if
+        place = "{:.{places}f}{}".format \
+          (
+            place,
+            (unit[1], " " + unit[2:4][place != 1])[long_form],
+            places = (0, seconds_places)[unitindex == 0]
+          )
+        result = \
+            (
+                place
+            +
+                ("", (" ", (", ", " and " )[unitindex == 1])[long_form])[unitindex > 0]
+            +
+                result
+            )
+        if factor == None :
+            break
+        interval //= factor
+        if interval == 0 :
+            break
+        unitindex += 1
+    #end while
+    return \
+        result
+#end format_elapsed
+
+def get_optional_env(varname, convert = None) :
+    # returns the value of the specified environment variable, converted
+    # by applying the convert function if specified; returns None if
+    # the value of the variable was not specified or empty.
+    val = os.getenv(varname, "")
+    if val != "" :
+        if convert != None :
+            val = convert(val)
+        #end if
+    else :
+        val = None
+    #end if
+    return \
+        val
+#end get_optional_env
+
+#+
+# Mainline
+#-
+
+blendfile = os.getenv("RENDER_blendfile")
+trusted = os.getenv("RENDER_trusted", "") != ""
+bpy.ops.wm.open_mainfile(filepath = blendfile, use_scripts = trusted)
+image_inputs = {}
+i = 0
+while True :
+    i += 1
+    input_name = get_optional_env("RENDER_input_name_{}".format(i))
+    file_name = get_optional_env("RENDER_input_file_{}".format(i))
+    if input_name == None or file_name == None :
+        break
+    image_inputs[input_name] = file_name
+#end while
+render_percentage = get_optional_env("RENDER_percentage", int)
+render_width = get_optional_env("RENDER_width", int)
+render_height = get_optional_env("RENDER_height", int)
+render_out = os.getenv("RENDER_out")
+existing_action = os.getenv("RENDER_existing")
+scene_name = get_optional_env("RENDER_scene")
+if scene_name != None :
+    bpy.context.screen.scene = bpy.data.scenes[scene_name]
+#end if
+active_scene = bpy.context.scene
+if render_percentage != None :
+    active_scene.render.resolution_percentage = render_percentage
+#end if
+if render_width != None :
+    active_scene.render.resolution_x = render_width
+#end if
+if render_height != None :
+    active_scene.render.resolution_y = render_height
+#end if
+if existing_action != "overwrite" and os.path.exists(render_out) :
+    raise RuntimeError("Output image “{}” already exists".format(render_out))
+#end if
+if active_scene.node_tree == None :
+    raise RuntimeError("blendfile “{}” does not have compositor nodes".format(blendfile))
+#end if
+start_time = time.time()
+sys.stderr.write("image_inputs = {!r}\n".format(image_inputs)) # debug
+for input_name in image_inputs :
+    input_node = active_scene.node_tree.nodes[input_name]
+    if input_node.type != "IMAGE" :
+        raise RuntimeError("node “{}” is not an image node".format(input_name))
+    #end if
+    input_node.image = bpy.data.images.load(image_inputs[input_name])
+#end for
+active_scene.render.image_settings.file_format = "PNG"
+active_scene.render.filepath = render_out
+bpy.ops.render.render(write_still = True)
+now = time.time()
+sys.stdout.write("Composited in {}\n".format(format_elapsed(now - start_time)))
+
+EOD
+)
