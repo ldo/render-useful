@@ -668,6 +668,9 @@ if arrange != None :
 assert not vse_render or stereo_offset == None and len(camera_names) == 0
 layers_str = os.getenv("RENDER_layers", None)
 use_camera_layers = os.getenv("RENDER_use_camera_layers", "") != ""
+if scene_name != None :
+    bpy.context.screen.scene = bpy.data.scenes[scene_name]
+#end if
 active_scene = bpy.context.scene
 
 if frame_start == None :
@@ -755,32 +758,29 @@ while True :
                 temp_image_names = tuple(os.path.join(tempdir, name) + ".png" for name in temp_image_names)
             #end if
 
-            if scene_name != None :
-                bpy.context.screen.scene = bpy.data.scenes[scene_name]
-            #end if
             if layers_str != None :
                 set_layers(*parse_layers_spec(layers_str))
             #end if
             if time_remap != None :
-                bpy.context.scene.render.frame_map_old = time_remap[0]
-                bpy.context.scene.render.frame_map_new = time_remap[1]
+                active_scene.render.frame_map_old = time_remap[0]
+                active_scene.render.frame_map_new = time_remap[1]
             #end if
             if len(camera_names) == 1 :
-                bpy.context.scene.camera = bpy.data.objects[camera_names[0]]
+                active_scene.camera = bpy.data.objects[camera_names[0]]
             #end if
             if render_samples != None :
                 if (
-                        hasattr(bpy.context.scene, "cycles")
+                        hasattr(active_scene, "cycles")
                     and
-                        bpy.context.scene.render.engine == "CYCLES"
+                        active_scene.render.engine == "CYCLES"
                 ) :
-                     bpy.context.scene.cycles.samples = render_samples
+                     active_scene.cycles.samples = render_samples
                 elif (
-                        bpy.context.scene.render.engine == "BLENDER_RENDER"
+                        active_scene.render.engine == "BLENDER_RENDER"
                     and
-                        bpy.context.scene.world.light_settings.gather_method == "RAYTRACE"
+                        active_scene.world.light_settings.gather_method == "RAYTRACE"
                 ) :
-                    bpy.context.scene.world.light_settings.samples = render_samples
+                    active_scene.world.light_settings.samples = render_samples
                 else :
                     raise ValueError \
                       (
@@ -820,13 +820,13 @@ while True :
                 #end if
                 if existing_action == "overwrite" or not os.path.exists(out_image_name) :
                     if use_camera_layers and len(camera_names) <= 1 :
-                        set_layers_from_object(bpy.context.scene.camera)
+                        set_layers_from_object(active_scene.camera)
                     #end if
                     if len(camera_names) > 1 :
                         for i in range(len(camera_names)) :
-                            bpy.context.scene.camera = bpy.data.objects[camera_names[i]]
+                            active_scene.camera = bpy.data.objects[camera_names[i]]
                             if use_camera_layers :
-                                set_layers_from_object(bpy.context.scene.camera)
+                                set_layers_from_object(active_scene.camera)
                             #end if
                             active_scene.render.filepath = temp_image_names[i]
                             bpy.ops.render.render(write_still = True)
