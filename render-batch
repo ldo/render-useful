@@ -93,8 +93,11 @@
 #          generate the images. If omitted, the default is 100 if
 #          --resolution is specified, otherwise the default is
 #          the setting in the .blend file.
-#    --resolution=width:height
+#    --resolution=[width]:[height]
 #          specifies the dimensions in pixels of each rendered image.
+#          At least one of width and height must be specified; if one
+#          is omitted, it is calculated from the other so as to maintain
+#          the existing aspect ratio.
 #    --rotate=angle
 #          rotates the images by the specified angle in
 #          degrees (which must be a whole multiple of 90).
@@ -797,10 +800,15 @@ while True :
             if render_percentage != None :
                 active_scene.render.resolution_percentage = render_percentage
             #end if
-            if render_width != None :
+            if render_width != None or render_height != None :
+                # maintain aspect ratio if only one is specified
+                if render_width == None :
+                    render_width = round(render_height * active_scene.render.resolution_x / active_scene.render.resolution_y)
+                #end if
+                if render_height == None :
+                    render_height = round(render_width * active_scene.render.resolution_y / active_scene.render.resolution_x)
+                #end if
                 active_scene.render.resolution_x = render_width
-            #end if
-            if render_height != None :
                 active_scene.render.resolution_y = render_height
             #end if
 
