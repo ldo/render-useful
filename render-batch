@@ -820,13 +820,13 @@ while True :
             start_time = time.time()
             frames_done = 0
             for frame_nr in range(frame_start, frame_end + 1, frame_step) :
-                active_scene.frame_set(frame_nr)
                 if animation :
                     out_image_name = os.path.join(use_render_out, frame_name(frame_nr))
                 else :
                     out_image_name = render_out
                 #end if
                 if existing_action == "overwrite" or not os.path.exists(out_image_name) :
+                    active_scene.frame_set(frame_nr)
                     if use_camera_layers and len(camera_names) <= 1 :
                         set_layers_from_object(active_scene.camera)
                     #end if
