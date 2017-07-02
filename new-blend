@@ -11,6 +11,8 @@
 #    --blender=blender
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
+#    --enable-compositor-nodes
+#          enables notes in the Compositor.
 #    --enable-cycles
 #          switch the render engine to Cycles. Also enables nodes on all
 #          lamps and materials.
@@ -20,13 +22,14 @@
 #          indicates that the file should be initialized from the factory
 #          default settings, not the user default settings.
 #
-# Copyright 2016 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2016-2017 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
 blender=blender
 factory=
 load_ui=1
+enable_compositor_nodes=
 enable_cycles=
 enable_osl=
 for ((;;)); do
@@ -43,6 +46,8 @@ for ((;;)); do
     opt="${opt%%=*}"
     if [ "$opt" = "blender" ]; then
         blender="$val"
+    elif [ "$opt" = "enable-compositor-nodes" ]; then
+        enable_compositor_nodes=1
     elif [ "$opt" = "enable-cycles" ]; then
         enable_cycles=1
     elif [ "$opt" = "enable-osl" ]; then
@@ -70,6 +75,7 @@ if [ -f "$blendfile" ]; then
     exit 2
 fi
 export RENDER_blendfile="$blendfile"
+export RENDER_enable_compositor_nodes="$enable_compositor_nodes"
 export RENDER_enable_cycles="$enable_cycles"
 export RENDER_enable_osl="$enable_osl"
 export RENDER_factory="$factory"
@@ -82,6 +88,7 @@ import bpy
 blendfile = os.getenv("RENDER_blendfile")
 use_factory_settings = os.getenv("RENDER_factory", "") != ""
 load_ui = os.getenv("RENDER_load_ui", "") != ""
+enable_compositor_nodes = os.getenv("RENDER_enable_compositor_nodes", "") != ""
 enable_cycles = os.getenv("RENDER_enable_cycles", "") != ""
 enable_osl = os.getenv("RENDER_enable_osl", "") != ""
 
@@ -89,6 +96,11 @@ if use_factory_settings :
     bpy.ops.wm.read_factory_settings()
 else :
     bpy.ops.wm.read_homefile(load_ui = load_ui)
+#end if
+if enable_compositor_nodes :
+    for scene in bpy.data.scenes :
+        scene.use_nodes = True
+    #end for
 #end if
 if enable_cycles :
     for scene in bpy.data.scenes :
