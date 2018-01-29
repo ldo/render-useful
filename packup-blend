@@ -22,9 +22,9 @@
 #
 # External commands needed:
 #     ext-files (part of the same render-useful package that includes packup-blend);
-#     tar and/or zip.
+#     tar, 7z and/or zip.
 #
-# Copyright 2017 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2017-2018 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -65,6 +65,13 @@ archivers = \
                 "double_dash" : DOUBLE_DASH.NOT_SUPPORTED,
                 "verbose" : ("--verbose",),
             },
+        "7z" :
+            {
+                "cmd" : ("7z", "a"),
+                "double_dash" : DOUBLE_DASH.BEFORE_FILES,
+                "verbose" : (),
+                "quiet" : ("-bd",), # not really that much difference
+            },
     }
 
 file_exts = \
@@ -75,6 +82,7 @@ file_exts = \
         ".tgz" : {"type" : "tar", "subtype" : "gzip"},
         ".tbz2" : {"type" : "tar", "subtype" : "bzip2"},
         ".zip" : {"type" : "zip"},
+        ".7z" : {"type" : "7z"},
     }
 
 #+
@@ -161,7 +169,13 @@ archiver = archivers[choose["type"]]
 
 args = list(archiver["cmd"])
 if verbose :
-    args.extend(list(archiver["verbose"]))
+    if "verbose" in archiver :
+        args.extend(list(archiver["verbose"]))
+    #end if
+else :
+    if "quiet" in archiver :
+        args.extend(list(archiver["quiet"]))
+    #end if
 #end if
 if "subtype" in choose :
     args.extend(list(archiver["subtype_opts"](choose["subtype"])))
