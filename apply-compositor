@@ -6,7 +6,7 @@
 # nodes by name, and saves the output to a specified image file.
 # Invoke it as follows:
 #
-#     render-batch [options...] blendfile dest
+#     apply-compositor [options...] blendfile dest
 #
 # where blendfile is the .blend file to to use, and dest is the name
 # to give the output PNG file.
