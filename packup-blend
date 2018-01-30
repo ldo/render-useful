@@ -1,17 +1,16 @@
 #!/usr/bin/python3
 #+
 # This script packs up a specified .blend file, along with its
-# external dependencies, into any of various archive formats,
-# for convenient transfer to another location. Invoke it as
-# follows:
+# external dependencies, into any of various archive formats, for
+# convenient transfer to another location. Invoke it as follows:
 #
 #     packup-blend [options...] blendfile archivefile
 #
 # where blendfile is the name of the .blend file to pack up,
-# archivefile is the name of the archive file to create. The
-# filename extension of the archivefile indicates the archive
-# format to create: this can be .zip, .tar, or the various
-# common compressed versions of the latter.
+# archivefile is the name of the archive file to create. The filename
+# extension of the archivefile indicates the archive format to create:
+# this can be .zip, .7z, .tar, or the various common compressed
+# versions of the latter.
 #
 # Valid options are
 #    --blender=blender
