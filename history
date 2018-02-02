@@ -231,9 +231,15 @@ def cmd_init(args, opts) :
     if ctx.repo_exists :
         raise getopt.GetoptError("repo already exists for %s" % repr(ctx.blendfilename))
     #end if
+    description = opts.get("description")
     ctx.setup_workdir()
     ctx.do_git(("init",), saving = True)
     ctx.do_git(("config", "--unset", "core.worktree"), saving = True) # can get set for some reason
+    if description != None :
+        descrfile = open(os.path.join(ctx.get_repo_name(), "description"), "w")
+        descrfile.write(description.rstrip("\n") + "\n")
+        descrfile.close()
+    #end if
     ctx.cleanup_workdir()
     sys.stderr.write("created Git repo %s\n" % ctx.get_repo_name())
 #end cmd_init
@@ -372,10 +378,11 @@ recognized_commands = \
     "init" :
         {
             "args" : 1,
-            "opts" : (),
+            "opts" : ("description=",),
             "action" : cmd_init,
             "help_usage" : "«blendfile»",
-            "help_descr" : "initializes a Git repo for saving history for the specified .blend file",
+            "help_descr" :
+                "initializes a Git repo for saving history for the specified .blend file",
         },
 
     "list" :
