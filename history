@@ -328,6 +328,8 @@ def cmd_commit(args, opts) :
         {
             "GIT_AUTHOR_DATE" : commit_time,
             "GIT_COMMITTER_DATE" : commit_time,
+            "TZ" : "UTC",
+              # local timezones should only be relevant in output displays, not in repository
         }
     ctx.do_git(("commit", "-m" + message), saving = True, extra_env = extra_env)
     ctx.cleanup_workdir()
