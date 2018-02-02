@@ -1,0 +1,485 @@
+#!/usr/bin/python3
+#+
+# This script maintains versions of a .blend file and its dependencies
+# in a Git repository. General invocation takes the form
+#
+#     history «cmd» ...
+#
+# where «cmd» is a subcommand indicating the operation to perform. To get
+# a list of the valid subcommands, do
+#
+#     history help
+#
+# and to get more detailed help on a particular subcommand, do
+#
+#     history help «cmd»
+#
+# External commands needed:
+#     ext-files (part of the same render-useful package that includes history),
+#     git.
+#
+# Copyright 2018 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
+#-
+
+import sys
+import os
+import time
+import subprocess
+import errno
+import json
+import shutil
+import fnmatch
+import getopt
+
+#+
+# Useful stuff
+#-
+
+def format_compact_datetime(timestamp) :
+    "returns as brief as possible a human-readable display of the specified date/time."
+    then_items = time.localtime(timestamp)
+    now = time.time()
+    now_items = time.localtime(now)
+    if abs(now - timestamp) < 86400 :
+        format = "%H:%M:%S"
+    else :
+        format = "%b-%d %H:%M"
+        if then_items.tm_year != now_items.tm_year :
+            format = "%Y " + format
+        #end if
+    #end if
+    return \
+        time.strftime(format, then_items)
+#end format_compact_datetime
+
+class RepoContext :
+    "so I only need to specify the blendfile name once to a bunch of routines."
+
+    def __init__(self, blendfilename) :
+        if not blendfilename.endswith(".blend") :
+            raise getopt.GetoptError("file name must end with .blend: %s" % repr(blendfilename))
+        #end if
+        self.blendfilename = os.path.abspath(blendfilename)
+        if not os.path.isfile(self.blendfilename) :
+            raise getopt.GetoptError("Blender file does not exist: %s" % repr(blendfilename))
+        #end if
+    #end __init__
+
+    def get_repo_name(self) :
+        "name to use for the repo associated with this doc."
+        return self.blendfilename + ".git"
+    #end get_repo_name
+
+    @property
+    def repo_exists(self) :
+        return \
+            os.path.isdir(self.get_repo_name())
+    #end repo_exists
+
+    def get_workdir_name(self) :
+        "name to use for a temporary source tree directory for making commits to the repo."
+        return self.blendfilename + ".work"
+    #end get_workdir_name
+
+    def setup_workdir(self) :
+        "creates a temporary work directory in which .git points to the actual" \
+        " repo directory."
+        work_dir = self.get_workdir_name()
+        try :
+            os.mkdir(work_dir)
+        except OSError as why :
+            if why.errno != errno.EEXIST :
+                raise
+            #end if
+        #end try
+        os.symlink("../" + os.path.basename(self.get_repo_name()), os.path.join(work_dir, ".git"))
+          # must be a symlink because it might not initially exist
+    #end setup_workdir
+
+    def cleanup_workdir(self) :
+        "gets rid of the temporary work directory."
+        shutil.rmtree(self.get_workdir_name())
+    #end cleanup_workdir
+
+    def do_git(self, args, saving = False, extra_env = None) :
+        "common routine for invoking all the Git functions."
+        env = dict(os.environ)
+        if saving :
+            # assume setup_workdir has been called
+            env.pop("GIT_DIR", None)
+            # Cannot use GIT_DIR, as that creates a bare repo, which cannot be committed to.
+            work_dir = self.get_workdir_name()
+            env = None
+        else :
+            # assume repo already exists, use parent directory of .blend file as work dir
+            work_dir = os.path.split(self.blendfilename)[0]
+            env["GIT_DIR"] = self.get_repo_name()
+        #end if
+        if extra_env != None :
+            if env == None :
+                env = {}
+            #end if
+            for key in extra_env :
+                env[key] = extra_env[key]
+            #end for
+        #end if
+        return \
+            subprocess.check_output \
+              (
+                args = ("git",) + args,
+                stdin = subprocess.DEVNULL,
+                shell = False,
+                cwd = work_dir,
+                env = env
+              )
+    #end do_git
+
+    def get_dependencies(self, blender = None) :
+        "gets the names of files that the .blend file depends on. Requires" \
+        " the ext-files command, which is part of this same package."
+        cmd = "ext-files"
+        try_parent_dir = False
+        while True :
+            try :
+                deps = subprocess.check_output \
+                  (
+                    args = (cmd,) + ((), ("--blender=%s" % blender,))[blender != None] + ("--full", self.blendfilename),
+                    universal_newlines = True,
+                  )
+                break
+            except FileNotFoundError :
+                if try_parent_dir :
+                    raise
+                #end if
+            #end try
+            cmd = os.path.join(os.path.split(sys.argv[0])[0], cmd)
+            try_parent_dir = True
+        #end while
+        deps = json.loads(deps)
+        deps = set(i["filepath"] for i in sum((v for v in deps.values()), []))
+          # set instead of list/tuple to remove any duplicates
+        return \
+            sorted(deps) # might as well list dependencies in consistent order
+    #end get_dependencies
+
+#end RepoContext
+
+#+
+# Definitions of valid commands.
+#
+# Each command function is passed two arguments: the first is
+# the list of positional arguments, and the second is the
+# dictionary of option keywords and corresponding values
+# that were specified.
+#-
+
+def cmd_help(args, opts) :
+    "shows the user the help description for a command, or for the help" \
+    " command itself if no valid command is given."
+    command_candidates = None
+    command_match = None
+    if len(args) == 1 :
+        cmd = args[0]
+        if cmd not in recognized_commands :
+            command_match = cmd
+            cmd = None
+            command_candidates = list \
+              (
+                c for c in recognized_commands.keys()
+                if fnmatch.fnmatch(c, command_match)
+              )
+        #end if
+    else :
+        cmd = "help"
+        command_candidates = recognized_commands.keys()
+    #end if
+    if cmd != None :
+        sys.stderr.write \
+          (
+                "Usage:\n\n\t%s %s %s\n\n%s.\n"
+            %
+                (
+                    sys.argv[0],
+                    cmd,
+                    recognized_commands[cmd]["help_usage"],
+                    recognized_commands[cmd]["help_descr"],
+                )
+          )
+    #end if
+    if command_candidates != None :
+        if len(command_candidates) != 0 :
+            sys.stderr.write \
+              (
+                    "\nValid commands%(matching)s are: %(commands)s.\n"
+                %
+                    {
+                        "matching" :
+                            ["", " matching \"%s\"" % command_match][command_match != None],
+                        "commands" : ", ".join(sorted(command_candidates)),
+                    }
+              )
+        else :
+            sys.stderr.write("No commands matching \"%s\".\n" % command_match)
+        #end if
+    #end if
+#end cmd_help
+
+def cmd_init(args, opts) :
+    "initializes a Git repo for saving history for the specified .blend file."
+    ctx = RepoContext(args[0])
+    if ctx.repo_exists :
+        raise getopt.GetoptError("repo already exists for %s" % repr(ctx.blendfilename))
+    #end if
+    ctx.setup_workdir()
+    ctx.do_git(("init",), saving = True)
+    ctx.do_git(("config", "--unset", "core.worktree"), saving = True) # can get set for some reason
+    ctx.cleanup_workdir()
+    sys.stderr.write("created Git repo %s\n" % ctx.get_repo_name())
+#end cmd_init
+
+def cmd_list(args, opts) :
+    "lists the saved history for the specified .blend file."
+    ctx = RepoContext(args[0])
+    if not os.path.isdir(ctx.get_repo_name()) :
+        raise getopt.GetoptError("no repo exists for %s" % repr(ctx.blendfilename))
+    #end if
+    sys.stdout.write("History for %s:\n" % ctx.blendfilename)
+    got_something = False
+    for line in ctx.do_git(("log", "--format=%H %ct %s")).decode("utf-8").split("\n") :
+        if len(line) != 0 :
+            entry = line.split(" ", 2)
+            sys.stdout.write \
+              (
+                "%s %s -- %s\n" % (entry[0], format_compact_datetime(int(entry[1])), entry[2])
+              )
+            got_something = True
+        #end if
+    #end for
+    if not got_something :
+        sys.stdout.write("No commits found.\n")
+    #end if
+#end cmd_list
+
+def cmd_log(args, opts) :
+    "lists the commit history for the specified .blend file."
+    ctx = RepoContext(args[0])
+    if not os.path.isdir(ctx.get_repo_name()) :
+        raise getopt.GetoptError("no repo exists for %s" % repr(ctx.blendfilename))
+    #end if
+    git_opts = ["log"]
+    for key in ("format", "raw") :
+        if key in opts :
+            git_opts.append \
+              (
+                "--%s%s" % (key, (lambda : "", lambda : "=%s" % opts[key])[len(opts[key]) != 0]())
+              )
+        #end if
+    #end for
+    env = dict(os.environ)
+    env["GIT_DIR"] = ctx.get_repo_name()
+    subprocess.check_call \
+      (
+        args = ["git"] + git_opts,
+        stdin = subprocess.DEVNULL,
+        shell = False,
+        cwd = os.path.split(ctx.blendfilename)[0], # not really needed
+        env = env
+      )
+#end cmd_log
+
+def cmd_commit(args, opts) :
+    "adds a commit to the repo for the .blend file and its associated dependencies."
+    ctx = RepoContext(args[0])
+    blender = opts.get("blender")
+    if not ctx.repo_exists :
+        raise getopt.GetoptError("repo does not exist for %s" % repr(ctx.blendfilename))
+    #end if
+    message = args[1]
+    if len(message.strip()) == 0 :
+        raise getopt.GetoptError("empty commit message")
+    #end if
+    ctx.setup_workdir()
+    parent_dir = os.path.split(ctx.blendfilename)[0]
+    work_dir = ctx.get_workdir_name()
+    os.link(ctx.blendfilename, os.path.join(work_dir, os.path.basename(ctx.blendfilename)))
+      # must be a hard link, else git commits the symlink
+    ctx.do_git(("add", "--", os.path.basename(ctx.blendfilename)), saving = True)
+    commit_time = str(int(os.stat(ctx.blendfilename).st_mtime))
+    for item in ctx.get_dependencies(blender = blender) :
+        if item.startswith("//") and not item.startswith("//../") :
+          # must be relative to .blend file but not at higher level
+            filepath = item[2:] # relative to .blend file
+            subparent_dir = os.path.split(filepath)[0]
+            if len(subparent_dir) != 0 :
+                os.makedirs(os.path.join(work_dir, subparent_dir), exist_ok = True)
+            #end if
+            dst_path = os.path.join(work_dir, filepath)
+              # keep relative path within work dir
+            os.link(os.path.join(parent_dir, filepath), dst_path)
+              # must be a hard link, else git commits the symlink
+            ctx.do_git(("add", "--", dst_path), saving = True)
+              # Git will quietly ignore this if file hasn’t changed
+        else :
+            pass # ignore up-level paths, absolute paths and paths with no leading “/”
+        #end if
+    #end for
+    extra_env = \
+        {
+            "GIT_AUTHOR_DATE" : commit_time,
+            "GIT_COMMITTER_DATE" : commit_time,
+        }
+    ctx.do_git(("commit", "-m" + message), saving = True, extra_env = extra_env)
+    ctx.cleanup_workdir()
+    sys.stdout.write("committed current version of %s.\n" % ctx.blendfilename)
+#end cmd_commit
+
+def cmd_checkout(args, opts) :
+    "checks out a previously-committed revision of the .blend file and its associated" \
+    " dependencies."
+    ctx = RepoContext(args[0])
+    if not ctx.repo_exists :
+        raise getopt.GetoptError("repo does not exist for %s" % repr(ctx.blendfilename))
+    #end if
+    commit = args[1]
+    ctx.do_git(("checkout", "-f", commit, "."))
+    sys.stdout.write("checked out revision %s for %s.\n" % (commit, ctx.blendfilename))
+#end cmd_checkout
+
+recognized_commands = \
+  {
+# key is command name, value is dictionary with following fields:
+#     args -- nr required positional args, or tuple of min and max nr required positional args
+#     opts -- tuple of long option names. If a name ends in an equal sign, then it takes a value.
+#     multivalued -- optional tuple of option keywords which can occur multiple times
+#     required -- optional tuple of option keywords which must be present
+#     help_usage -- used to construct a usage string when giving help for the command.
+#     help_descr -- explanatory text shown when giving help for the command.
+#     open_db -- can be optionally set to False to disable automatic opening of database
+#     action -- the function to invoke to actually perform the command.
+
+    "help" :
+        {
+            "args" : (0, 1),
+            "opts" : (),
+            "action" : cmd_help,
+            "help_usage" : "[«cmd»]",
+            "help_descr" : "gives help about the specified command",
+        },
+
+    "init" :
+        {
+            "args" : 1,
+            "opts" : (),
+            "action" : cmd_init,
+            "help_usage" : "«blendfile»",
+            "help_descr" : "initializes a Git repo for saving history for the specified .blend file",
+        },
+
+    "list" :
+        {
+            "args" : 1,
+            "opts" : (),
+            "action" : cmd_list,
+            "help_usage" : "«blendfile»",
+            "help_descr" : "lists the saved history for the specified .blend file",
+        },
+
+    "log" :
+        {
+            "args" : 1,
+            "opts" : ("format=", "raw"),
+            "action" : cmd_log,
+            "help_usage" : "«blendfile»",
+            "help_descr" : "lists the commit history for the specified .blend file",
+        },
+
+    "commit" :
+        {
+            "args" : 2,
+            "opts" : ("blender=",),
+            "action" : cmd_commit,
+            "help_usage" : "[--blender=«path-to-blender»] «blendfile» «message»",
+            "help_descr" : "adds a commit to the repo for the specified .blend file",
+        },
+
+    "checkout" :
+        {
+            "args" : 2,
+            "opts" : (),
+            "action" : cmd_checkout,
+            "help_usage" : "«blendfile» «commit»",
+            "help_descr" :
+                "checks out a previously-saved commit from the repo for the"
+                " specified .blend file",
+        },
+
+  } # recognized_commands
+
+#+
+# Mainline
+#-
+
+def mainline() :
+    if len(sys.argv) < 2 :
+        raise getopt.GetoptError("need at least one arg, the cmd to execute")
+    #end if
+    cmd = sys.argv[1]
+    cmd_entry = recognized_commands.get(cmd)
+    if cmd_entry == None :
+        raise getopt.GetoptError("unrecognized command %s" % repr(cmd))
+    #end if
+    (opts_list, args) = getopt.gnu_getopt \
+      (
+        sys.argv[2:],
+        "",
+        cmd_entry["opts"]
+      )
+    if type(cmd_entry["args"]) == tuple :
+        if \
+          (
+                len(args) < cmd_entry["args"][0]
+            or
+                len(args) > cmd_entry["args"][1]
+          ):
+            raise getopt.GetoptError \
+              (
+                "%s command needs %u..%u args" % ((cmd,) + cmd_entry["args"])
+              )
+        #end if
+    else :
+        if len(args) != cmd_entry["args"] :
+            raise getopt.GetoptError \
+              (
+                "%s command needs exactly %u args" % (cmd, cmd_entry["args"])
+              )
+        #end if
+    #end if
+    opts = {}
+    multi_opts = frozenset(cmd_entry.get("multivalued", ()))
+    for keyword, value in opts_list :
+        if keyword[:2] == "--" :
+            keyword = keyword[2:]
+            if keyword in multi_opts :
+                values = opts.get(keyword, [])
+                values.append(value)
+                opts[keyword] = values
+            else :
+                opts[keyword] = value
+            #end if
+        #end if
+    #end for
+    required_opts = cmd_entry.get("required")
+    if required_opts != None :
+        missing = set(required_opts) - set(opts.keys())
+        if len(missing) != 0 :
+            raise getopt.GetoptError \
+              (
+                "%s command needs option(s) %s" % (cmd, ",".join(tuple(missing)))
+              )
+        #end if
+    #end if
+    cmd_entry["action"](args, opts) # can raise exceptions
+#end mainline
+
+mainline()
