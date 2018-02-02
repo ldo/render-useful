@@ -247,7 +247,7 @@ def cmd_init(args, opts) :
 def cmd_list(args, opts) :
     "lists the saved history for the specified .blend file."
     ctx = RepoContext(args[0])
-    if not os.path.isdir(ctx.get_repo_name()) :
+    if ctx.repo_exists :
         raise getopt.GetoptError("no repo exists for %s" % repr(ctx.blendfilename))
     #end if
     sys.stdout.write("History for %s:\n" % ctx.blendfilename)
@@ -270,7 +270,7 @@ def cmd_list(args, opts) :
 def cmd_log(args, opts) :
     "lists the commit history for the specified .blend file."
     ctx = RepoContext(args[0])
-    if not os.path.isdir(ctx.get_repo_name()) :
+    if not ctx.repo_exists :
         raise getopt.GetoptError("no repo exists for %s" % repr(ctx.blendfilename))
     #end if
     git_opts = ["log"]
