@@ -100,7 +100,7 @@ class RepoContext :
     #end cleanup_workdir
 
     def do_git(self, args, saving = False, extra_env = None) :
-        "common routine for invoking all the Git functions."
+        "common routine for invoking a Git function and returning its output as result."
         env = dict(os.environ)
         if saving :
             # assume setup_workdir has been called
@@ -131,6 +131,20 @@ class RepoContext :
                 env = env
               )
     #end do_git
+
+    def do_git_direct(self, args) :
+        "invokes a Git function and lets user see its output directly."
+        env = dict(os.environ)
+        env["GIT_DIR"] = self.get_repo_name()
+        subprocess.check_call \
+          (
+            args = ("git",) + args,
+            stdin = subprocess.DEVNULL,
+            shell = False,
+            cwd = os.path.split(self.blendfilename)[0],
+            env = env
+          )
+    #end do_git_direct
 
     def get_dependencies(self, blender = None, blendfilename = None) :
         "gets the names of files that the .blend file depends on. Requires" \
@@ -282,16 +296,7 @@ def cmd_log(args, opts) :
               )
         #end if
     #end for
-    env = dict(os.environ)
-    env["GIT_DIR"] = ctx.get_repo_name()
-    subprocess.check_call \
-      (
-        args = ["git"] + git_opts,
-        stdin = subprocess.DEVNULL,
-        shell = False,
-        cwd = os.path.split(ctx.blendfilename)[0], # not really needed
-        env = env
-      )
+    ctx.do_git_direct(tuple(git_opts))
 #end cmd_log
 
 def cmd_commit(args, opts) :
@@ -342,6 +347,15 @@ def cmd_commit(args, opts) :
     ctx.cleanup_workdir()
     sys.stdout.write("committed current version of %s as %s.\n" % (blendfilename, ctx.blendfilename))
 #end cmd_commit
+
+def cmd_uncommit(args, opts) :
+    ctx = RepoContext(args[0])
+    if not ctx.repo_exists :
+        raise getopt.GetoptError("repo does not exist for %s" % repr(ctx.blendfilename))
+    #end if
+    ctx.do_git(("reset", "--soft", "HEAD^"))
+    ctx.do_git_direct(("show", "HEAD"))
+#end cmd_uncommit
 
 def cmd_checkout(args, opts) :
     "checks out a previously-committed revision of the .blend file and its associated" \
@@ -411,6 +425,15 @@ recognized_commands = \
             "action" : cmd_commit,
             "help_usage" : "[--blender=«path-to-blender»] [--name=«commit_blendfilename»] «blendfile» «message»",
             "help_descr" : "adds a commit to the repo for the specified .blend file",
+        },
+
+    "uncommit" :
+        {
+            "args" : 1,
+            "opts" : (),
+            "action" : cmd_uncommit,
+            "help_usage" : "«blendfile»",
+            "help_descr" : "undoes the last commit to the repo for the specified .blend file",
         },
 
     "checkout" :
