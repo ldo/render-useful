@@ -61,9 +61,6 @@ class RepoContext :
             raise getopt.GetoptError("file name must end with .blend: %s" % repr(blendfilename))
         #end if
         self.blendfilename = os.path.abspath(blendfilename)
-        if not os.path.isfile(self.blendfilename) :
-            raise getopt.GetoptError("Blender file does not exist: %s" % repr(blendfilename))
-        #end if
     #end __init__
 
     def get_repo_name(self) :
@@ -135,16 +132,19 @@ class RepoContext :
               )
     #end do_git
 
-    def get_dependencies(self, blender = None) :
+    def get_dependencies(self, blender = None, blendfilename = None) :
         "gets the names of files that the .blend file depends on. Requires" \
         " the ext-files command, which is part of this same package."
+        if blendfilename == None :
+            blendfilename = self.blendfilename
+        #end if
         cmd = "ext-files"
         try_parent_dir = False
         while True :
             try :
                 deps = subprocess.check_output \
                   (
-                    args = (cmd,) + ((), ("--blender=%s" % blender,))[blender != None] + ("--full", self.blendfilename),
+                    args = (cmd,) + ((), ("--blender=%s" % blender,))[blender != None] + ("--full", blendfilename),
                     universal_newlines = True,
                   )
                 break
@@ -296,7 +296,8 @@ def cmd_log(args, opts) :
 
 def cmd_commit(args, opts) :
     "adds a commit to the repo for the .blend file and its associated dependencies."
-    ctx = RepoContext(args[0])
+    ctx = RepoContext(opts.get("name", args[0]))
+    blendfilename = args[0]
     blender = opts.get("blender")
     if not ctx.repo_exists :
         raise getopt.GetoptError("repo does not exist for %s" % repr(ctx.blendfilename))
@@ -306,13 +307,13 @@ def cmd_commit(args, opts) :
         raise getopt.GetoptError("empty commit message")
     #end if
     ctx.setup_workdir()
-    parent_dir = os.path.split(ctx.blendfilename)[0]
+    parent_dir = os.path.split(blendfilename)[0]
     work_dir = ctx.get_workdir_name()
-    os.link(ctx.blendfilename, os.path.join(work_dir, os.path.basename(ctx.blendfilename)))
+    os.link(blendfilename, os.path.join(work_dir, os.path.basename(ctx.blendfilename)))
       # must be a hard link, else git commits the symlink
     ctx.do_git(("add", "--", os.path.basename(ctx.blendfilename)), saving = True)
-    commit_time = str(int(os.stat(ctx.blendfilename).st_mtime))
-    for item in ctx.get_dependencies(blender = blender) :
+    commit_time = str(int(os.stat(blendfilename).st_mtime))
+    for item in ctx.get_dependencies(blender = blender, blendfilename = blendfilename) :
         if item.startswith("//") and not item.startswith("//../") :
           # must be relative to .blend file but not at higher level
             filepath = item[2:] # relative to .blend file
@@ -339,7 +340,7 @@ def cmd_commit(args, opts) :
         }
     ctx.do_git(("commit", "-m" + message), saving = True, extra_env = extra_env)
     ctx.cleanup_workdir()
-    sys.stdout.write("committed current version of %s.\n" % ctx.blendfilename)
+    sys.stdout.write("committed current version of %s as %s.\n" % (blendfilename, ctx.blendfilename))
 #end cmd_commit
 
 def cmd_checkout(args, opts) :
@@ -406,9 +407,9 @@ recognized_commands = \
     "commit" :
         {
             "args" : 2,
-            "opts" : ("blender=",),
+            "opts" : ("blender=", "name="),
             "action" : cmd_commit,
-            "help_usage" : "[--blender=«path-to-blender»] «blendfile» «message»",
+            "help_usage" : "[--blender=«path-to-blender»] [--name=«commit_blendfilename»] «blendfile» «message»",
             "help_descr" : "adds a commit to the repo for the specified .blend file",
         },
 
@@ -417,7 +418,7 @@ recognized_commands = \
             "args" : 2,
             "opts" : (),
             "action" : cmd_checkout,
-            "help_usage" : "«blendfile» «commit»",
+            "help_usage" : "«blendfile» «commit» [«dest»]",
             "help_descr" :
                 "checks out a previously-saved commit from the repo for the"
                 " specified .blend file",
