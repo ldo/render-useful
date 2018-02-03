@@ -247,7 +247,7 @@ def cmd_init(args, opts) :
 def cmd_list(args, opts) :
     "lists the saved history for the specified .blend file."
     ctx = RepoContext(args[0])
-    if ctx.repo_exists :
+    if not ctx.repo_exists :
         raise getopt.GetoptError("no repo exists for %s" % repr(ctx.blendfilename))
     #end if
     sys.stdout.write("History for %s:\n" % ctx.blendfilename)
