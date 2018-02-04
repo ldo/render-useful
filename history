@@ -354,7 +354,7 @@ def cmd_uncommit(args, opts) :
         raise getopt.GetoptError("repo does not exist for %s" % repr(ctx.blendfilename))
     #end if
     ctx.do_git(("reset", "--soft", "HEAD^"))
-    ctx.do_git_direct(("show", "HEAD"))
+    ctx.do_git_direct(("show", "--raw", "HEAD"))
 #end cmd_uncommit
 
 def cmd_checkout(args, opts) :
