@@ -969,7 +969,7 @@ while True :
         #end with
         if crash_protect :
             # Blender seems to get confused over threading in the child process,
-            # and hangs instead of quitting, so seems simplest to just kill myself...
+            # and hangs instead of quitting.
             # sys.exit(0) -- does exit, but parent gets signal.SIGSEGV status
             os._exit(0) # bypass all userland cleanup processing
         else :
