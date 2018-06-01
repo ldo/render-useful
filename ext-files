@@ -21,12 +21,12 @@
 #    --test-missing
 #          don’t produce any output, but return a success/failure exit
 #          status if blendfile does/does not have any missing dependencies
-#          respectively. Incompatible with the --full, --presence or test-missing
+#          respectively. Incompatible with the --full, --presence or test-requires
 #          options.
 #    --test-requires=depfile
 #          don’t produce any output, but return a success/failure exit
 #          status if blendfile does/does not have depfile as a dependency
-#          respectively. Incompatible with the --full, --presence or test-requires
+#          respectively. Incompatible with the --full, --presence or test-missing
 #          options.
 #
 # Copyright 2015-2017 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
