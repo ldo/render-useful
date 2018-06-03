@@ -260,9 +260,13 @@ if not found :
             for node in material.node_tree.nodes :
                 if isinstance(node, bpy.types.ShaderNodeScript) and node.mode == "EXTERNAL" :
                     process_item("shader-node scripts", node, (), material.name)
+                    if found :
+                        break
                 #end if
             #end for
         #end if
+        if found :
+            break
     #end for
     if full_json and cat_started :
         out.write("\n        ]")
