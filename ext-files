@@ -1,8 +1,8 @@
 #!/bin/bash
 #+
 # This script displays information about a specified .blend file,
-# namely external image, library, font and sound files that it
-# depends on. Invoke it as follows:
+# namely external image, library, font, OSL script and sound files
+# that it depends on. Invoke it as follows:
 #
 #     ext-files [options...] blendfile
 #
@@ -29,7 +29,7 @@
 #          respectively. Incompatible with the --full, --presence or test-missing
 #          options.
 #
-# Copyright 2015-2017 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2015-2018 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -154,6 +154,71 @@ if test_requires != None :
     test_requires = expand_path(test_requires, True)
 #end if
 exit_status = 0
+
+def process_item(category, item, extra, name_extra) :
+    global found, cat_started, first_cat, first_item, missing
+    if full_json :
+        if not cat_started :
+            if full_json :
+                if first_cat :
+                    first_cat = False
+                else :
+                    out.write(",")
+                #end if
+                out.write("\n    %s:\n        [" % json.dumps(category))
+                first_item = True
+            #end if
+            cat_started = True
+        #end if
+        if first_item :
+            first_item = False
+        else :
+            out.write(",")
+        #end if
+        out.write("\n            {")
+        first_attr = True
+        for attr in ("name", "filepath") + extra :
+            if first_attr :
+                first_attr = False
+            else :
+                out.write(",")
+            #end if
+            value = getattr(item, attr)
+            if attr == "name" and name_extra != None :
+                value = name_extra + "/" + value
+            #end if
+            out.write \
+              (
+                    "\n                %s: %s"
+                %
+                    (json.dumps(attr), json.dumps(value))
+              )
+            if presence and attr == "filepath" :
+                out.write \
+                  (
+                        ",\n                \"present\": %s"
+                    %
+                        ("false", "true")[path_ok(value)]
+                  )
+            #end if
+        #end for
+        out.write("\n            }")
+    elif test_requires == None :
+        if test_missing :
+            missing += int(not path_ok(item.filepath))
+        else :
+            if presence :
+                out.write("%s: " % ("missing", "present")[path_ok(item.filepath)])
+            #end if
+            out.write(item.filepath + "\n")
+        #end if
+    else :
+        if expand_path(item.filepath, False) == test_requires :
+            found = True
+        #end if
+    #end if
+#end process_item
+
 for \
     category, match, mismatch, extra \
 in \
@@ -175,73 +240,34 @@ in \
             and
                 all(getattr(item, k) == match[k] for k in match)
         ) :
-            if full_json :
-                if not cat_started :
-                    if full_json :
-                        if first_cat :
-                            first_cat = False
-                        else :
-                            out.write(",")
-                        #end if
-                        out.write("\n    %s:\n        [" % json.dumps(category))
-                        first_item = True
-                    #end if
-                    cat_started = True
-                #end if
-                if first_item :
-                    first_item = False
-                else :
-                    out.write(",")
-                #end if
-                out.write("\n            {")
-                first_attr = True
-                for attr in ("name", "filepath") + extra :
-                    if first_attr :
-                        first_attr = False
-                    else :
-                        out.write(",")
-                    #end if
-                    value = getattr(item, attr)
-                    out.write \
-                      (
-                            "\n                %s: %s"
-                        %
-                            (json.dumps(attr), json.dumps(value))
-                      )
-                    if presence and attr == "filepath" :
-                        out.write \
-                          (
-                                ",\n                \"present\": %s"
-                            %
-                                ("false", "true")[path_ok(value)]
-                          )
-                    #end if
-                #end for
-                out.write("\n            }")
-            elif test_requires == None :
-                if test_missing :
-                    missing += int(not path_ok(item.filepath))
-                else :
-                    if presence :
-                        out.write("%s: " % ("missing", "present")[path_ok(item.filepath)])
-                    #end if
-                    out.write(item.filepath + "\n")
-                #end if
-            else :
-                if expand_path(item.filepath, False) == test_requires :
-                    found = True
-                    break
-                #end if
-            #end if
+            process_item(category, item, extra, None)
+            if found :
+                break
         #end if
     #end for
     if found :
         break
-    #end if
     if full_json and cat_started :
         out.write("\n        ]")
     #end if
 #end for
+if not found :
+    if full_json :
+        cat_started = False
+    #end if
+    for material in bpy.data.materials :
+        if material.node_tree != None :
+            for node in material.node_tree.nodes :
+                if isinstance(node, bpy.types.ShaderNodeScript) and node.mode == "EXTERNAL" :
+                    process_item("shader-node scripts", node, (), material.name)
+                #end if
+            #end for
+        #end if
+    #end for
+    if full_json and cat_started :
+        out.write("\n        ]")
+    #end if
+#end if
 if full_json :
     out.write("\n}\n")
 #end if
