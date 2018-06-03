@@ -1,7 +1,7 @@
 #!/bin/bash
 #+
 # This script displays information about a specified .blend file,
-# namely external image, library, font, OSL script and sound files
+# namely external font, image, library, OSL script and sound files
 # that it depends on. Invoke it as follows:
 #
 #     ext-files [options...] blendfile
