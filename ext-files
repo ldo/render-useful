@@ -155,82 +155,87 @@ if test_requires != None :
 #end if
 exit_status = 0
 
-def process_item(category, item, extra, name_extra) :
+def process_item(category, item, extra, name_extra, done_filepaths) :
     "common code for processing the various data block types that can have a filepath attribute."
     global found, cat_started, first_cat, first_item, missing
-    if full_json :
-        if not cat_started :
-            if full_json :
-                if first_cat :
-                    first_cat = False
-                else :
-                    out.write(",")
+    if done_filepaths == None or item.filepath not in done_filepaths :
+        if done_filepaths != None :
+            done_filepaths.add(item.filepath)
+        #end if
+        if full_json :
+            if not cat_started :
+                if full_json :
+                    if first_cat :
+                        first_cat = False
+                    else :
+                        out.write(",")
+                    #end if
+                    out.write("\n    %s:\n        [" % json.dumps(category))
+                    first_item = True
                 #end if
-                out.write("\n    %s:\n        [" % json.dumps(category))
-                first_item = True
+                cat_started = True
             #end if
-            cat_started = True
-        #end if
-        if first_item :
-            first_item = False
-        else :
-            out.write(",")
-        #end if
-        out.write("\n            {")
-        first_attr = True
-        for attr in ("name", "filepath") + extra :
-            if first_attr :
-                first_attr = False
+            if first_item :
+                first_item = False
             else :
                 out.write(",")
             #end if
-            value = getattr(item, attr)
-            if attr == "name" and name_extra != None :
-                value = name_extra + "/" + value
-            #end if
-            out.write \
-              (
-                    "\n                %s: %s"
-                %
-                    (json.dumps(attr), json.dumps(value))
-              )
-            if presence and attr == "filepath" :
+            out.write("\n            {")
+            first_attr = True
+            for attr in ("name", "filepath") + extra :
+                if first_attr :
+                    first_attr = False
+                else :
+                    out.write(",")
+                #end if
+                value = getattr(item, attr)
+                if attr == "name" and name_extra != None :
+                    value = name_extra + "/" + value
+                #end if
                 out.write \
                   (
-                        ",\n                \"present\": %s"
+                        "\n                %s: %s"
                     %
-                        ("false", "true")[path_ok(value)]
+                        (json.dumps(attr), json.dumps(value))
                   )
+                if presence and attr == "filepath" :
+                    out.write \
+                      (
+                            ",\n                \"present\": %s"
+                        %
+                            ("false", "true")[path_ok(value)]
+                      )
+                #end if
+            #end for
+            out.write("\n            }")
+        elif test_requires == None :
+            if test_missing :
+                missing += int(not path_ok(item.filepath))
+            else :
+                if presence :
+                    out.write("%s: " % ("missing", "present")[path_ok(item.filepath)])
+                #end if
+                out.write(item.filepath + "\n")
             #end if
-        #end for
-        out.write("\n            }")
-    elif test_requires == None :
-        if test_missing :
-            missing += int(not path_ok(item.filepath))
         else :
-            if presence :
-                out.write("%s: " % ("missing", "present")[path_ok(item.filepath)])
+            if expand_path(item.filepath, False) == test_requires :
+                found = True
             #end if
-            out.write(item.filepath + "\n")
-        #end if
-    else :
-        if expand_path(item.filepath, False) == test_requires :
-            found = True
         #end if
     #end if
 #end process_item
 
-def process_node(category, node, name_extra) :
+def process_node(category, node, name_extra, script_filepaths) :
     "common code for processing shader-node trees. Can call itself recursively to handle" \
     " node groups."
     if node.node_tree != None :
         for subnode in node.node_tree.nodes :
             if subnode.type == "GROUP" :
-                process_node(category, subnode, name_extra + "/" + subnode.name)
+                process_node(category, subnode, name_extra + "/" + subnode.name, script_filepaths)
                 if found :
                     break
             elif isinstance(subnode, bpy.types.ShaderNodeScript) and subnode.mode == "EXTERNAL" :
-                process_item(category, subnode, (), name_extra)
+                process_item(category, subnode, (), name_extra, script_filepaths)
                 if found :
                     break
             #end if
@@ -259,7 +264,7 @@ in \
             and
                 all(getattr(item, k) == match[k] for k in match)
         ) :
-            process_item(category, item, extra, None)
+            process_item(category, item, extra, None, None)
             if found :
                 break
         #end if
@@ -274,8 +279,9 @@ if not found :
     if full_json :
         cat_started = False
     #end if
+    script_filepaths = set()
     for material in bpy.data.materials :
-        process_node("shader-node scripts", material, material.name)
+        process_node("shader-node scripts", material, material.name, script_filepaths)
         if found :
             break
     #end for
