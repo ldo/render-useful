@@ -154,14 +154,13 @@ if test_requires != None :
     test_requires = expand_path(test_requires, True)
 #end if
 exit_status = 0
+seen_filepaths = set()
 
-def process_item(category, item, extra, name_extra, done_filepaths) :
+def process_item(category, item, extra, name_extra) :
     "common code for processing the various data block types that can have a filepath attribute."
     global found, cat_started, first_cat, first_item, missing
-    if done_filepaths == None or item.filepath not in done_filepaths :
-        if done_filepaths != None :
-            done_filepaths.add(item.filepath)
-        #end if
+    if item.filepath not in seen_filepaths :
+        seen_filepaths.add(item.filepath)
         if full_json :
             if not cat_started :
                 if full_json :
@@ -225,17 +224,17 @@ def process_item(category, item, extra, name_extra, done_filepaths) :
     #end if
 #end process_item
 
-def process_node(category, node, name_extra, script_filepaths) :
+def process_node(category, node, name_extra) :
     "common code for processing shader-node trees. Can call itself recursively to handle" \
     " node groups."
     if node.node_tree != None :
         for subnode in node.node_tree.nodes :
             if subnode.type == "GROUP" :
-                process_node(category, subnode, name_extra + "/" + subnode.name, script_filepaths)
+                process_node(category, subnode, name_extra + "/" + subnode.name)
                 if found :
                     break
             elif isinstance(subnode, bpy.types.ShaderNodeScript) and subnode.mode == "EXTERNAL" :
-                process_item(category, subnode, (), name_extra, script_filepaths)
+                process_item(category, subnode, (), name_extra)
                 if found :
                     break
             #end if
@@ -264,7 +263,7 @@ in \
             and
                 all(getattr(item, k) == match[k] for k in match)
         ) :
-            process_item(category, item, extra, None, None)
+            process_item(category, item, extra, None)
             if found :
                 break
         #end if
@@ -279,9 +278,8 @@ if not found :
     if full_json :
         cat_started = False
     #end if
-    script_filepaths = set()
     for material in bpy.data.materials :
-        process_node("shader-node scripts", material, material.name, script_filepaths)
+        process_node("shader-node scripts", material, material.name)
         if found :
             break
     #end for
