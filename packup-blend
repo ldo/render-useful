@@ -55,7 +55,12 @@ archivers = \
                 "cmd_suffix" : ("--file",),
                 "double_dash" : DOUBLE_DASH.AFTER_SUFFIX_ARG,
                 "subtype_opts" :
-                    lambda subtype : {"gzip" : ("--gzip",), "bzip2" : ("--bzip2",)}[subtype],
+                    lambda subtype :
+                        {
+                            "bzip2" : ("--bzip2",),
+                            "gzip" : ("--gzip",),
+                            "xz" : ("--xz",),
+                        }[subtype],
                 "verbose" : ("--verbose",),
             },
         "zip" :
@@ -76,10 +81,12 @@ archivers = \
 file_exts = \
     { # choose appropriate archiver depending on output filename extension
         ".tar" : {"type" : "tar"},
-        ".tar.gz" : {"type" : "tar", "subtype" : "gzip"},
         ".tar.bz2" : {"type" : "tar", "subtype" : "bzip2"},
-        ".tgz" : {"type" : "tar", "subtype" : "gzip"},
+        ".tar.gz" : {"type" : "tar", "subtype" : "gzip"},
+        ".tar.xz" : {"type" : "tar", "subtype" : "xz"},
         ".tbz2" : {"type" : "tar", "subtype" : "bzip2"},
+        ".tgz" : {"type" : "tar", "subtype" : "gzip"},
+        ".txz" : {"type" : "tar", "subtype" : "xz"},
         ".zip" : {"type" : "zip"},
         ".7z" : {"type" : "7z"},
     }
