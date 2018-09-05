@@ -106,6 +106,9 @@
 #          BI renderer in Raytrace gather mode, only).
 #    --scene=scene
 #          specifies the scene to render.
+#    --threads=n
+#          how many concurrent threads to use for rendering
+#          (defaults to “auto”).
 #    --time-remap=old:new
 #          alters the rendered frame rate to be
 #          (new ÷ old) × the existing frame rate.
@@ -161,6 +164,7 @@ out=
 existing=error
 animation=
 crash_protect=
+threads=
 time_remap=
 crossed=
 trusted=
@@ -243,6 +247,8 @@ for ((;;)); do
         scene="$val"
     elif [ "$opt" = "stereo" ]; then
         stereo_offset="$val"
+    elif [ "$opt" = "threads" ]; then
+        threads="$val"
     elif [ "$opt" = "time-remap" ]; then
         time_remap="$val"
     elif [ "$opt" = "trusted" ]; then
@@ -321,6 +327,7 @@ export RENDER_scene="$scene"
 export RENDER_layers="$layers"
 export RENDER_use_camera_layers="$use_camera_layers"
 export RENDER_samples="$samples"
+export RENDER_threads="$threads"
 export RENDER_percentage="$render_percentage"
 export RENDER_width="$render_width"
 export RENDER_height="$render_height"
@@ -648,6 +655,27 @@ frame_start = get_optional_env("RENDER_frame_start", int)
 frame_end = get_optional_env("RENDER_frame_end", int)
 frame_step = get_optional_env("RENDER_frame_step", int)
 render_samples = get_optional_env("RENDER_samples", int)
+nr_render_threads = os.getenv("RENDER_threads")
+if nr_render_threads == "" :
+    nr_render_threads = None
+#end if
+render_threads_mode = None # default
+if nr_render_threads != None :
+    if nr_render_threads.lower() == "auto" :
+        render_threads_mode = "AUTO"
+        nr_render_threads = None
+    else :
+        try :
+            nr_render_threads = int(nr_render_threads)
+        except ValueError :
+            raise ValueError("invalid number of --threads")
+        #end try
+        if nr_render_threads < 1 :
+            raise ValueError("invalid value for number of --threads")
+        #end if
+        render_threads_mode = "FIXED"
+    #end if
+#end if
 scene_name = get_optional_env("RENDER_scene")
 camera_names = []
 i = 0
@@ -792,6 +820,12 @@ while True :
                         " BI renderer in Raytrace gather mode"
                       )
                 #end if
+            #end if
+            if render_threads_mode != None :
+                active_scene.render.threads_mode = render_threads_mode
+            #end if
+            if nr_render_threads != None :
+                active_scene.render.threads = nr_render_threads
             #end if
             active_camera = active_scene.camera
             if not vse_render :
