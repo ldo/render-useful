@@ -988,6 +988,7 @@ while True :
                 elif os.path.isdir(render_out) :
                     shutil.rmtree(render_out)
                 #end if
+                sys.stdout.write("Rename dir {} => {}\n".format(outtempdir, render_out))
                 os.rename(outtempdir, render_out)
             #end if
             now = time.time()
