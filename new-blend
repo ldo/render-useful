@@ -21,6 +21,8 @@
 #    --factory
 #          indicates that the file should be initialized from the factory
 #          default settings, not the user default settings.
+#    --template=«template-name»
+#          specifies the startup template to load.
 #
 # Copyright 2016-2017 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
@@ -28,6 +30,7 @@
 
 blender=blender
 factory=
+template=
 load_ui=1
 enable_compositor_nodes=
 enable_cycles=
@@ -56,11 +59,17 @@ for ((;;)); do
         factory=1
     elif [ "$opt" = "no-load-ui" ]; then
         load_ui=
+    elif [ "$opt" = "template" ]; then
+        template="$val"
     else
         echo "$0: bad option $opt" 1>&2
         exit 1
     fi
 done
+if [ "$factory" -a -n "$template" ]; then
+    echo "$0: --factory and --template are mutually exclusive" 1>&2
+    exit 2
+fi
 if [ -z "$(type -p "$blender")" ]; then
     echo "$0: no such executable “$blender”" 1>&2
     exit 2
@@ -76,17 +85,34 @@ if [ -f "$blendfile" ]; then
 fi
 export RENDER_blendfile="$blendfile"
 export RENDER_enable_compositor_nodes="$enable_compositor_nodes"
+export RENDER_factory="$factory"
+export RENDER_template="$template"
+export RENDER_load_ui="$load_ui"
 export RENDER_enable_cycles="$enable_cycles"
 export RENDER_enable_osl="$enable_osl"
-export RENDER_factory="$factory"
-export RENDER_load_ui="$load_ui"
 
 exec "$blender" -noaudio 5>&1 1>/dev/null -b -P <(cat <<'EOD'
 import os
+import getopt
 import bpy
 
 blendfile = os.getenv("RENDER_blendfile")
 use_factory_settings = os.getenv("RENDER_factory", "") != ""
+template = os.getenv("RENDER_template", "")
+if template != "" :
+    valid_templates = set()
+    for dir in bpy.utils.app_template_paths() :
+        valid_templates |= set(os.listdir(dir))
+    #end for
+    if template not in valid_templates :
+        raise getopt.GetoptError \
+          (
+                "invalid template %s not found among those currently installed: %s"
+            %
+                (repr(template), repr(sorted(valid_templates)))
+          )
+    #end if
+#end if
 load_ui = os.getenv("RENDER_load_ui", "") != ""
 enable_compositor_nodes = os.getenv("RENDER_enable_compositor_nodes", "") != ""
 enable_cycles = os.getenv("RENDER_enable_cycles", "") != ""
@@ -95,7 +121,7 @@ enable_osl = os.getenv("RENDER_enable_osl", "") != ""
 if use_factory_settings :
     bpy.ops.wm.read_factory_settings()
 else :
-    bpy.ops.wm.read_homefile(load_ui = load_ui)
+    bpy.ops.wm.read_homefile(app_template = template, load_ui = load_ui)
 #end if
 if enable_compositor_nodes :
     for scene in bpy.data.scenes :
