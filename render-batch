@@ -630,7 +630,15 @@ trusted = os.getenv("RENDER_trusted", "") != ""
 bpy.ops.wm.open_mainfile(filepath = blendfile, use_scripts = trusted)
 vse_render = os.getenv("RENDER_vse", "") != ""
 stereo_offset = get_optional_env("RENDER_stereo_offset", float)
-render_percentage = get_optional_env("RENDER_percentage", int)
+render_percentage = get_optional_env("RENDER_percentage")
+if render_percentage != None :
+    try :
+        render_percentage = int(render_percentage)
+    except ValueError :
+        # allow fractions, which Blender itself does not
+        render_percentage = float(render_percentage)
+    #end try
+#end if
 render_width = get_optional_env("RENDER_width", int)
 render_height = get_optional_env("RENDER_height", int)
 rotate = get_optional_env("RENDER_rotate", int)
@@ -832,9 +840,6 @@ while True :
                 orig_camera_matrix = active_camera.matrix_basis.copy()
             #end if
 
-            if render_percentage != None :
-                active_scene.render.resolution_percentage = render_percentage
-            #end if
             if render_width != None or render_height != None :
                 # maintain aspect ratio if only one is specified
                 if render_width == None :
@@ -845,6 +850,17 @@ while True :
                 #end if
                 active_scene.render.resolution_x = render_width
                 active_scene.render.resolution_y = render_height
+            #end if
+            if render_percentage != None :
+                if isinstance(render_percentage, float) :
+                    active_scene.render.resolution_x = \
+                        round(active_scene.render.resolution_x * render_percentage / 100)
+                    active_scene.render.resolution_y = \
+                        round(active_scene.render.resolution_y * render_percentage / 100)
+                    active_scene.render.resolution_percentage = 100
+                else : # isinstance(render_percentage, int)
+                    active_scene.render.resolution_percentage = render_percentage
+                #end if
             #end if
 
             active_scene.render.image_settings.file_format = "PNG"
