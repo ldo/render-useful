@@ -306,7 +306,6 @@ if [ $animation ]; then
     export RENDER_frame_start="${frame_spec[0]}"
     export RENDER_frame_end="${frame_spec[1]}"
     export RENDER_frame_step="${frame_spec[2]}"
-    echo "frames from $RENDER_frame_start to $RENDER_frame_end via $RENDER_frame_step" # debug
 else
     export RENDER_frame_start="$frame_spec"
 fi
@@ -743,6 +742,7 @@ if animation :
         raise ValueError("not enough digits for frame numbers")
     #end if
 #end if
+sys.stdout.write("frame range = %d to %d by %d\n" % (frame_start, frame_end, frame_step)) # debug
 
 need_worktemp = len(camera_names) > 1 or stereo_offset != None or rotate != 0
 if animation and existing_action == "replace-all" :
