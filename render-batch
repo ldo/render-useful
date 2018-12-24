@@ -112,9 +112,11 @@
 #    --time-remap=old:new
 #          alters the rendered frame rate to be
 #          (new ÷ old) × the existing frame rate.
-#          You will need to make the corresponding adjustments
-#          to the start and end frame numbers to get the same
-#          time duration.
+#          If you don’t specify explicit start and end frame numbers,
+#          then the corresponding values set in the .blend file are
+#          automatically remapped to get as close as possible to the
+#          same start and end times, rounded to the nearest whole frame
+#          numbers. But note that the frame step remains unchanged.
 #    --trusted
 #          treat the .blend file as being loaded from a trusted
 #          source. This will enable autoexecution of scripts
@@ -135,7 +137,7 @@
 # two eye images side-by-side, the image for the right eye on
 # the left and vice versa, for viewing as “cross-eyed” stereo.
 #
-# Copyright 2013-2017 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2013-2018 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -546,6 +548,17 @@ def parse_layers_spec(s) :
         replace_layers, add_layers, remove_layers
 #end parse_layers_spec
 
+def remap_frame_nr(frame_nr) :
+    # returns frame_nr suitably adjusted for any time_remap parameters.
+    if time_remap != None :
+        result = round((frame_nr - 1) * (time_remap[1] / time_remap[0])) + 1
+    else :
+        result = frame_nr
+    #end if
+    return \
+        result
+#end remap_frame_nr
+
 def get_image_from_png(filename) :
     # loads the contents of a PNG file as an ImageSurface, applying any
     # appropriate rotation.
@@ -713,11 +726,11 @@ if scene_name != None :
 active_scene = bpy.context.scene
 
 if frame_start == None :
-    frame_start = (active_scene.frame_current, active_scene.frame_start)[animation]
+    frame_start = remap_frame_nr((active_scene.frame_current, active_scene.frame_start)[animation])
 #end if
 if animation :
     if frame_end == None :
-        frame_end = active_scene.frame_end
+        frame_end = remap_frame_nr(active_scene.frame_end)
     #end if
     if frame_step == None :
         frame_step = active_scene.frame_step
