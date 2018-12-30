@@ -17,6 +17,7 @@
 
 import sys
 import os
+import math
 import time
 import re
 import getopt
@@ -108,15 +109,18 @@ def format_endtime(interval) :
 # Mainline
 #-
 
+estimate_error = False
 nr_frames = 6
 opts, args = getopt.getopt \
   (
     sys.argv[1:],
-    ["nr-frames="]
-    "",
+    "e",
+    ["estimate-error", "nr-frames="]
   )
 for keyword, value in opts :
-    if keyword == "--nr-frames" :
+    if keyword == "-e" or keyword == "--estimate-error" :
+        estimate_error = True
+    elif keyword == "--nr-frames" :
         nr_frames = int(value)
         if nr_frames < 2 :
             raise getopt.GetoptError("minimum --nr-frames is 2")
@@ -166,15 +170,62 @@ if len(frames_so_far) < 2 :
 #end if
 nr_frames = min(nr_frames, len(frames_so_far))
 # sys.stderr.write("sorted & trimmed frames_so_far = %s\n" % repr(frames_so_far)) # debug
-time_per_frame = \
-    (
+error_estimate = None # to begin with
+if estimate_error and nr_frames > 2 :
+    frame_mtimes = list \
+      (
+        os.path.getmtime(os.path.join(out_dir, frames_so_far[i][1]))
+        for i in range(nr_frames)
+      )
+    frame_times = list \
+      (
+            (frame_mtimes[i] - frame_mtimes[i + 1])
+        /
+            (frames_so_far[i][0] - frames_so_far[i + 1][0])
+        for i in range(nr_frames - 1)
+      )
+    time_per_frame = sum(frame_times) / len(frame_times)
+    variance = 0
+    for i in range(nr_frames - 1) :
+        diff = frame_times[i] - time_per_frame
+        variance += diff * diff
+    #end for
+    error_estimate = math.sqrt(variance / (nr_frames - 1))
+      # may not be strictly correct, but should be good enough
+      # see <https://en.wikipedia.org/wiki/Standard_deviation>
+else :
+    time_per_frame = \
         (
-            os.path.getmtime(os.path.join(out_dir, frames_so_far[0][1]))
-        -
-            os.path.getmtime(os.path.join(out_dir, frames_so_far[nr_frames - 1][1]))
+            (
+                os.path.getmtime(os.path.join(out_dir, frames_so_far[0][1]))
+            -
+                os.path.getmtime(os.path.join(out_dir, frames_so_far[nr_frames - 1][1]))
+            )
+        /
+            (frames_so_far[0][0] - frames_so_far[nr_frames - 1][0])
         )
-    /
-        (frames_so_far[0][0] - frames_so_far[nr_frames - 1][0])
-    )
-time_remaining = time_per_frame * (final_frame_nr - frames_so_far[0][0])
-sys.stdout.write("time per frame from last %d frames = %s, latest frame = %d, final frame = %d, estimated time remaining = %s (finish at %s)\n" % (nr_frames, format_elapsed(time_per_frame), frames_so_far[0][0], final_frame_nr, format_elapsed(time_remaining), format_endtime(time_remaining)))
+#end if
+frames_delta = final_frame_nr - frames_so_far[0][0]
+time_remaining = time_per_frame * frames_delta
+sys.stdout.write \
+  (
+        "time per frame from last %(nr_frames)d frames = %(time_per_frame)s%(time_per_frame_error)s,"
+        " latest frame = %(latest_frame)d, final frame = %(final_frame_nr)d,"
+        " estimated time remaining = %(time_remaining)s%(time_remaining_error)s"
+        " (finish at %(finish_time)s)\n"
+    %
+        {
+            "nr_frames" : nr_frames,
+            "time_per_frame" : format_elapsed(time_per_frame),
+            "time_per_frame_error" :
+                (lambda : "", lambda : " ±%ds" % round(error_estimate))
+                    [error_estimate != None](),
+            "latest_frame" : frames_so_far[0][0],
+            "final_frame_nr" : final_frame_nr,
+            "time_remaining" : format_elapsed(time_remaining),
+            "time_remaining_error" :
+                (lambda : "", lambda : " ±%ds" % round(error_estimate * frames_delta))
+                    [error_estimate != None](),
+            "finish_time" : format_endtime(time_remaining),
+        }
+  )
