@@ -1,0 +1,176 @@
+#!/usr/bin/python3
+#+
+# This script estimates the time remaining to finish rendering an
+# animation, based on the time intervals between the last few
+# PNG frames in an output directory. Invoke it as follows:
+#
+#     estimate-remaining «out-dir» «final-frame-nr»
+#
+# where «out-dir» is the directory containing the rendered frames, and
+# «final-frame-nr» is the number of the final frame in the animation.
+# The output will show the calculated time per frame, and the
+# estimated time until the render of the final frame is complete.
+#
+# Copyright 2018 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
+#-
+
+import sys
+import os
+import time
+import re
+import getopt
+
+#+
+# Useful stuff
+#-
+
+seconds_per_day = 86400
+
+units = \
+    ( # sequence of quadruples, first element is multiplier to apply to
+      # previous quadruple, or nr of seconds for first quadruple, second
+      # element is abbreviated unit name, third element is singular unit
+      # name, fourth element is plural unit name.
+        (1, "s", "second", "seconds"),
+        (60, "m", "minute", "minutes"),
+        (60, "h", "hour", "hours"),
+        (24, "d", "day", "days"),
+        (7, "wk", "week", "weeks"),
+    )
+
+def format_elapsed(interval, long_form = False, seconds_places = 0) :
+    "returns an accurate indication of the specified interval in seconds." \
+    " long_form indicates whether to display the units in long form or short form," \
+    " while seconds_places indicates the number of decimal places to use for showing" \
+    " the seconds."
+    interval = round(interval)
+    unitindex = 0
+    result = ""
+    while True :
+        if unitindex == len(units) :
+            break
+        unit = units[unitindex]
+        if unitindex + 1 < len(units) :
+            factor = units[unitindex + 1][0]
+            place = interval % factor
+        else :
+            factor = None
+            place = interval
+        #end if
+        place = "{:.{places}f}{}".format \
+          (
+            place,
+            (unit[1], " " + unit[2:4][place != 1])[long_form],
+            places = (0, seconds_places)[unitindex == 0]
+          )
+        result = \
+            (
+                place
+            +
+                ("", (" ", (", ", " and " )[unitindex == 1])[long_form])[unitindex > 0]
+            +
+                result
+            )
+        if factor == None :
+            break
+        interval //= factor
+        if interval == 0 :
+            break
+        unitindex += 1
+    #end while
+    return \
+        result
+#end format_elapsed
+
+def format_endtime(interval) :
+    "returns a formatted representation of a date/time the specified number of seconds" \
+    " in the future. Omits redundant fields, depending on how far in the future it is."
+    now = time.time()
+    then = now + interval
+    now_items = time.localtime(now)
+    then_items = time.localtime(then)
+    format = "%H:%M:%S"
+    if now_items[0:3] != then_items[0:3] :
+        format += " %a"
+        if (then - now) // seconds_per_day > 6 :
+            format += " %d %b"
+            if now_items[0] != then_items[0] :
+                format += " %Y"
+            #end if
+        #end if
+    #end if
+    return \
+        time.strftime(format, then_items)
+#end format_endtime
+
+#+
+# Mainline
+#-
+
+nr_frames = 6
+opts, args = getopt.getopt \
+  (
+    sys.argv[1:],
+    "v",
+    ["nr-frames="]
+  )
+for keyword, value in opts :
+    if keyword == "--nr-frames" :
+        nr_frames = int(value)
+        if nr_frames < 2 :
+            raise getopt.GetoptError("minimum --nr-frames is 2")
+        #end if
+    #end if
+#end for
+if len(args) != 2 :
+    raise getopt.GetoptError("need exactly 2 args, the «out-dir» and the «final-frame-nr»")
+#end if
+out_dir = args[0]
+final_frame_nr = int(args[1])
+if final_frame_nr < nr_frames :
+    raise getopt.GetoptError \
+      (
+        "«final-frame-nr» must be at least --nr-frames, which is %d" % nr_frames
+      )
+#end if
+if not os.path.isdir(out_dir) :
+    raise getopt.GetoptError("«out-dir» %s is not a directory" % repr(out_dir))
+#end if
+
+frames_so_far = []
+nr_frame_digits = None
+for item in os.listdir(out_dir) :
+    match = re.search("^(\d+)\.png$", item)
+    if match != None :
+        this_nr_digits = len(match.group(1))
+        this_frame_nr = int(match.group(1))
+        if nr_frame_digits == None :
+            nr_frame_digits = this_nr_digits
+        elif nr_frame_digits != this_nr_digits :
+            raise RuntimeError \
+              (
+                    "wrong number of digits(%d) in frame %s -- expecting %d"
+                %
+                    (this_nr_digits, repr(item), nr_frame_digits)
+              )
+        #end if
+        frames_so_far.append((this_frame_nr, item))
+    else :
+        sys.stderr.write("ignoring item %s in output directory" % repr(item))
+    #end if
+#end for
+frames_so_far = sorted(frames_so_far, key = lambda x : x[0], reverse = True)[:nr_frames]
+# sys.stderr.write("sorted & trimmed frames_so_far = %s\n" % repr(frames_so_far)) # debug
+time_per_frame = \
+    (
+        (
+            os.path.getmtime(os.path.join(out_dir, frames_so_far[0][1]))
+        -
+            os.path.getmtime(os.path.join(out_dir, frames_so_far[nr_frames - 1][1]))
+        )
+    /
+        (frames_so_far[0][0] - frames_so_far[nr_frames - 1][0])
+    )
+time_remaining = time_per_frame * (final_frame_nr - frames_so_far[0][0])
+sys.stdout.write("time per frame from last %d frames = %s, latest frame = %d, final frame = %d, estimated time remaining = %s (finish at %s)\n" % (nr_frames, format_elapsed(time_per_frame), frames_so_far[0][0], final_frame_nr, format_elapsed(time_remaining), format_endtime(time_remaining)))
