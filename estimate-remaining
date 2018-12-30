@@ -161,6 +161,10 @@ for item in os.listdir(out_dir) :
     #end if
 #end for
 frames_so_far = sorted(frames_so_far, key = lambda x : x[0], reverse = True)[:nr_frames]
+if len(frames_so_far) < 2 :
+    raise RuntimeError("too few frames rendered so far, need at least 2")
+#end if
+nr_frames = min(nr_frames, len(frames_so_far))
 # sys.stderr.write("sorted & trimmed frames_so_far = %s\n" % repr(frames_so_far)) # debug
 time_per_frame = \
     (
