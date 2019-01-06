@@ -109,7 +109,7 @@ for scene in bpy.data.scenes :
                     "    %s camera “%s” type %s"
                 %
                     (
-                        (other_marker, active_marker)[object.name == scene.camera.name],
+                        (other_marker, active_marker)[scene.camera != None and object.name == scene.camera.name],
                         object.name,
                         camera.type,
                     )
