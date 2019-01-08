@@ -378,7 +378,6 @@ recognized_commands = \
 #     required -- optional tuple of option keywords which must be present
 #     help_usage -- used to construct a usage string when giving help for the command.
 #     help_descr -- explanatory text shown when giving help for the command.
-#     open_db -- can be optionally set to False to disable automatic opening of database
 #     action -- the function to invoke to actually perform the command.
 
     "help" :
