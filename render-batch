@@ -81,10 +81,10 @@
 #          for an animation, the starting number to use to generate
 #          names for the output frame files. If omitted, defaults to
 #          the frame start number.
-#    --stereo=«stereo-parms»
+#    --stereo[=«stereo-parms»]
 #          specifies that a stereoscopic image is to be rendered,
-#          using Blender’s Views feature. «stereo-parms» takes the
-#          form
+#          using Blender’s Views feature. If specified, «stereo-parms»
+#          takes the form
 #
 #              «keyword»=«value»[:«keyword»=«value»...]
 #
@@ -188,6 +188,9 @@ for ((;;)); do
     opt="${1:2:${#1}}"
     shift
     val="${opt#*=}"
+    if [ "$val" = "$opt" ]; then
+        val=""
+    fi
     opt="${opt%%=*}"
     if [ "$opt" = "animation" ]; then
         animation=1
@@ -680,7 +683,7 @@ blendfile = os.getenv("RENDER_blendfile")
 trusted = os.getenv("RENDER_trusted", "") != ""
 bpy.ops.wm.open_mainfile(filepath = blendfile, use_scripts = trusted)
 vse_render = os.getenv("RENDER_vse", "") != ""
-stereo_settings = get_optional_env("RENDER_stereo_settings")
+stereo_settings = os.getenv("RENDER_stereo_settings", "")
 render_percentage = get_optional_env("RENDER_percentage")
 if render_percentage != None :
     try :
@@ -766,19 +769,23 @@ doing_stereo = False # to begin with
 if hasattr(active_scene.render, "use_multiview") :
     if stereo_settings != None :
         doing_stereo = True
-        valid_parms = \
-            {
-                "convergence_distance" : validate_float_at_least(1e-5),
-                "convergence_mode" : validate_enum({"OFFAXIS", "PARALLEL", "TOE"}),
-                "interocular_distance" : validate_float_at_least(0),
-                "pivot" : validate_enum({"CENTER", "LEFT", "RIGHT"}),
-            }
-        stereo_params = dict(item.split("=", 1) for item in stereo_settings.split(":"))
-        invalid_parms = set(k for k in stereo_params.keys() if k not in valid_parms)
-        if len(invalid_parms) != 0 :
-            raise ValueError("invalid stereo params: %s" % ",".join(sorted(invalid_parms)))
+        if stereo_settings != "" :
+            valid_parms = \
+                {
+                    "convergence_distance" : validate_float_at_least(1e-5),
+                    "convergence_mode" : validate_enum({"OFFAXIS", "PARALLEL", "TOE"}),
+                    "interocular_distance" : validate_float_at_least(0),
+                    "pivot" : validate_enum({"CENTER", "LEFT", "RIGHT"}),
+                }
+            stereo_params = dict(item.split("=", 1) for item in stereo_settings.split(":"))
+            invalid_parms = set(k for k in stereo_params.keys() if k not in valid_parms)
+            if len(invalid_parms) != 0 :
+                raise ValueError("invalid stereo params: %s" % ",".join(sorted(invalid_parms)))
+            #end if
+            stereo_params = dict((k, valid_parms[k](stereo_params[k])) for k in stereo_params)
+        else :
+            stereo_params = {}
         #end if
-        stereo_params = dict((k, valid_parms[k](stereo_params[k])) for k in stereo_params)
         active_scene.render.use_multiview = True
         active_scene.render.views_format = "STEREO_3D"
     else :
