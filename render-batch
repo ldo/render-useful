@@ -81,11 +81,17 @@
 #          for an animation, the starting number to use to generate
 #          names for the output frame files. If omitted, defaults to
 #          the frame start number.
-#    --stereo=offset
-#          specifies that a stereoscopic image is to be rendered.
-#          offset is the distance in BU to offset the camera to each
-#          side from its initial position to generate the image for
-#          each eye. If omitted, a single image is rendered.
+#    --stereo=«stereo-parms»
+#          specifies that a stereoscopic image is to be rendered,
+#          using Blender’s Views feature. «stereo-parms» takes the
+#          form
+#
+#              «keyword»=«value»[:«keyword»=«value»...]
+#
+#          where the valid «keyword»s are “convergence_distance”,
+#          “convergence_mode”, “interocular_distance” and “pivot”,
+#          being the corresponding fields of a CameraStereoData object.
+#          If omitted, the default settings for the document are used.
 #    --out=dest
 #          alternative way to specify the render destination.
 #    --percent=percent
@@ -137,7 +143,7 @@
 # two eye images side-by-side, the image for the right eye on
 # the left and vice versa, for viewing as “cross-eyed” stereo.
 #
-# Copyright 2013-2018 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2013-2019 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -153,7 +159,7 @@ arrange=
 scene=
 samples=
 vse=
-stereo_offset=
+stereo_settings=
 layers=
 use_camera_layers=
 digits=4
@@ -248,7 +254,7 @@ for ((;;)); do
     elif [ "$opt" = "scene" ]; then
         scene="$val"
     elif [ "$opt" = "stereo" ]; then
-        stereo_offset="$val"
+        stereo_settings="$val"
     elif [ "$opt" = "threads" ]; then
         threads="$val"
     elif [ "$opt" = "time-remap" ]; then
@@ -276,7 +282,7 @@ fi
 blendfile="$1"
 export RENDER_blendfile="$blendfile"
 
-if [ -n "$stereo_offset" -a $nr_cameras -gt 1 ]; then
+if [ -n "$stereo_settings" -a $nr_cameras -gt 1 ]; then
     opterror "cannot specify --stereo with more than one --camera"
 fi
 if [ $nr_cameras -ne 0 ]; then
@@ -285,7 +291,7 @@ if [ $nr_cameras -ne 0 ]; then
     fi
     unset RENDER_camera_$((nr_cameras + 1)) # just in case
 fi
-if [ -n "$stereo_offset" -a -n "$vse" ]; then
+if [ -n "$stereo_settings" -a -n "$vse" ]; then
     opterror "cannot specify --vse with --stereo"
 fi
 if [ -n "$use_camera_layers" -a -n "$layers" ]; then
@@ -299,7 +305,7 @@ fi
 
 # pass parameters to Python script in environment variables to avoid
 # problems with special characters
-export RENDER_stereo_offset="$stereo_offset"
+export RENDER_stereo_settings="$stereo_settings"
 if [ $animation ]; then
     if [ -z "$out" -o \( \( "$existing" != "replace-all" -o -e "$out" \) -a ! -d "$out" \) ]; then
         opterror "must specify --out directory for animation frames"
@@ -463,6 +469,39 @@ class DummyTempDir :
     #end __exit__
 
 #end DummyTempDir
+
+def validate_float_at_least(minval) :
+    minval = float(minval)
+
+    def validate(val) :
+        val = float(val)
+        if val < minval :
+            raise ValueError("float value %.3g must be at least %.3g" % (val, minval))
+        #end if
+        return \
+            val
+    #end validate
+
+#begin validate_float_at_least
+    return \
+        validate
+#end validate_float_at_least
+
+def validate_enum(vals) :
+
+    def validate(val) :
+        val = val.upper()
+        if val not in vals :
+            raise ValueError("value %s not in recognized values %s" % (repr(val), sorted(vals)))
+        #end if
+        return \
+            val
+    #end validate
+
+#begin validate_enum
+    return \
+        validate
+#end validate_enum
 
 def parse_layers_spec(s) :
     replace_layers = None
@@ -641,7 +680,7 @@ blendfile = os.getenv("RENDER_blendfile")
 trusted = os.getenv("RENDER_trusted", "") != ""
 bpy.ops.wm.open_mainfile(filepath = blendfile, use_scripts = trusted)
 vse_render = os.getenv("RENDER_vse", "") != ""
-stereo_offset = get_optional_env("RENDER_stereo_offset", float)
+stereo_settings = get_optional_env("RENDER_stereo_settings")
 render_percentage = get_optional_env("RENDER_percentage")
 if render_percentage != None :
     try :
@@ -717,13 +756,52 @@ if arrange != None :
         arrange = arrange[0]
     #end if
 #end if
-assert not vse_render or stereo_offset == None and len(camera_names) == 0
 layers_str = os.getenv("RENDER_layers", None)
 use_camera_layers = os.getenv("RENDER_use_camera_layers", "") != ""
 if scene_name != None :
     bpy.context.screen.scene = bpy.data.scenes[scene_name]
 #end if
 active_scene = bpy.context.scene
+doing_stereo = False # to begin with
+if hasattr(active_scene.render, "use_multiview") :
+    if stereo_settings != None :
+        doing_stereo = True
+        valid_parms = \
+            {
+                "convergence_distance" : validate_float_at_least(1e-5),
+                "convergence_mode" : validate_enum({"OFFAXIS", "PARALLEL", "TOE"}),
+                "interocular_distance" : validate_float_at_least(0),
+                "pivot" : validate_enum({"CENTER", "LEFT", "RIGHT"}),
+            }
+        stereo_params = dict(item.split("=", 1) for item in stereo_settings.split(":"))
+        invalid_parms = set(k for k in stereo_params.keys() if k not in valid_parms)
+        if len(invalid_parms) != 0 :
+            raise ValueError("invalid stereo params: %s" % ",".join(sorted(invalid_parms)))
+        #end if
+        stereo_params = dict((k, valid_parms[k](stereo_params[k])) for k in stereo_params)
+        active_scene.render.use_multiview = True
+        active_scene.render.views_format = "STEREO_3D"
+    else :
+        if active_scene.render.use_multiview :
+            if active_scene.render.views_format != "STEREO_3D" :
+                raise RuntimeError("Only multiview mode supported is STEREO_3D")
+            #end if
+            stereo_params = {}
+            doing_stereo = True
+        #end if
+    #end if
+else :
+    if stereo_settings != None :
+        raise RuntimeError("Blender version does not support multiview")
+    #end if
+#end if
+assert not vse_render or not doing_stereo and len(camera_names) == 0
+if doing_stereo :
+    active_scene.render.image_settings.views_format = "STEREO_3D"
+    active_scene.render.image_settings.stereo_3d_format.display_mode = "SIDEBYSIDE"
+    active_scene.render.image_settings.stereo_3d_format.use_sidebyside_crosseyed = True
+    active_scene.render.image_settings.stereo_3d_format.use_squeezed_frame = False
+#end if
 
 if frame_start == None :
     frame_start = remap_frame_nr((active_scene.frame_current, active_scene.frame_start)[animation])
@@ -757,7 +835,7 @@ if animation :
 #end if
 sys.stdout.write("frame range = %d to %d by %d\n" % (frame_start, frame_end, frame_step)) # debug
 
-need_worktemp = len(camera_names) > 1 or stereo_offset != None or rotate != 0
+need_worktemp = len(camera_names) > 1 or rotate != 0
 if animation and existing_action == "replace-all" :
     # Create a temporary output directory into which to save the new frames.
     # This is not automatically deleted on error, so you at least get the
@@ -802,8 +880,6 @@ while True :
             temp_image_names = None
             if len(camera_names) > 1 :
                 temp_image_names = tuple("camera_{}".format(i + 1) for i in range(len(camera_names)))
-            elif stereo_offset != None :
-                temp_image_names = ("left", "right")
             elif rotate != 0 :
                 temp_image_names = ("unrotated",)
             #end if
@@ -891,12 +967,24 @@ while True :
                 #end if
                 if existing_action == "overwrite" or not os.path.exists(out_image_name) :
                     active_scene.frame_set(frame_nr)
-                    if use_camera_layers and len(camera_names) <= 1 :
-                        set_layers_from_object(active_scene.camera)
+                    if len(camera_names) <= 1 :
+                        if doing_stereo :
+                            for param in stereo_params :
+                                setattr(active_scene.camera.data.stereo, param, stereo_params[param])
+                            #end if
+                        #end if
+                        if use_camera_layers  :
+                            set_layers_from_object(active_scene.camera)
+                        #end if
                     #end if
                     if len(camera_names) > 1 :
                         for i in range(len(camera_names)) :
                             active_scene.camera = bpy.data.objects[camera_names[i]]
+                            if doing_stereo :
+                                for param in stereo_params :
+                                    setattr(active_scene.camera.data.stereo, param, stereo_params[param])
+                                #end if
+                            #end if
                             if use_camera_layers :
                                 set_layers_from_object(active_scene.camera)
                             #end if
@@ -958,44 +1046,6 @@ while True :
                         #end for
                         concat.flush()
                         concat.write_to_png(out_image_name)
-                    elif stereo_offset != None :
-                        for sign in (-1, +1) : # left eye, then right eye
-                            active_scene.render.filepath = temp_image_names[sign > 0]
-                            active_camera.matrix_basis = \
-                                (
-                                    orig_camera_matrix
-                                *
-                                    mathutils.Matrix.Translation(mathutils.Vector((sign * stereo_offset, 0, 0)))
-                                )
-                            bpy.ops.render.render(write_still = True)
-                        #end for
-                        left_eye = get_image_from_png(temp_image_names[0])
-                        right_eye = get_image_from_png(temp_image_names[1])
-                        if crossed :
-                            left_eye, right_eye = right_eye, left_eye
-                        #end if
-                        if compose_offset == None :
-                            compose_offset = left_eye.width
-                            image_height = left_eye.height
-                        #end if
-                        stereo = qah.ImageSurface.create \
-                          (
-                            format = CAIRO.FORMAT_RGB24,
-                            dimensions = (compose_offset * 2, image_height)
-                          )
-                        (qah.Context.create(stereo)
-                            .set_operator(CAIRO.OPERATOR_SOURCE)
-                            .set_source_colour(Colour.grey(0, 0))
-                            .paint()
-                            .set_source_surface(right_eye, (0, 0))
-                            .rectangle(Rect(0, 0, compose_offset, image_height))
-                            .fill()
-                            .set_source_surface(left_eye, (compose_offset, 0))
-                            .rectangle(Rect(compose_offset, 0, compose_offset, image_height))
-                            .fill()
-                        )
-                        stereo.flush()
-                        stereo.write_to_png(out_image_name)
                     elif rotate != 0 :
                         active_scene.render.filepath = temp_image_names[0]
                         bpy.ops.render.render(write_still = True)
