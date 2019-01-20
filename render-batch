@@ -160,6 +160,7 @@ scene=
 samples=
 vse=
 stereo_settings=
+do_stereo=
 layers=
 use_camera_layers=
 digits=4
@@ -258,6 +259,7 @@ for ((;;)); do
         scene="$val"
     elif [ "$opt" = "stereo" ]; then
         stereo_settings="$val"
+        do_stereo=1
     elif [ "$opt" = "threads" ]; then
         threads="$val"
     elif [ "$opt" = "time-remap" ]; then
@@ -285,7 +287,7 @@ fi
 blendfile="$1"
 export RENDER_blendfile="$blendfile"
 
-if [ -n "$stereo_settings" -a $nr_cameras -gt 1 ]; then
+if [ -n "$do_stereo" -a $nr_cameras -gt 1 ]; then
     opterror "cannot specify --stereo with more than one --camera"
 fi
 if [ $nr_cameras -ne 0 ]; then
@@ -294,7 +296,7 @@ if [ $nr_cameras -ne 0 ]; then
     fi
     unset RENDER_camera_$((nr_cameras + 1)) # just in case
 fi
-if [ -n "$stereo_settings" -a -n "$vse" ]; then
+if [ -n "$do_stereo" -a -n "$vse" ]; then
     opterror "cannot specify --vse with --stereo"
 fi
 if [ -n "$use_camera_layers" -a -n "$layers" ]; then
@@ -308,7 +310,9 @@ fi
 
 # pass parameters to Python script in environment variables to avoid
 # problems with special characters
-export RENDER_stereo_settings="$stereo_settings"
+if [ -n "$do_stereo" ]; then
+        export RENDER_stereo_settings="$stereo_settings"
+fi
 if [ $animation ]; then
     if [ -z "$out" -o \( \( "$existing" != "replace-all" -o -e "$out" \) -a ! -d "$out" \) ]; then
         opterror "must specify --out directory for animation frames"
@@ -683,7 +687,7 @@ blendfile = os.getenv("RENDER_blendfile")
 trusted = os.getenv("RENDER_trusted", "") != ""
 bpy.ops.wm.open_mainfile(filepath = blendfile, use_scripts = trusted)
 vse_render = os.getenv("RENDER_vse", "") != ""
-stereo_settings = os.getenv("RENDER_stereo_settings", "")
+stereo_settings = os.getenv("RENDER_stereo_settings", None)
 render_percentage = get_optional_env("RENDER_percentage")
 if render_percentage != None :
     try :
