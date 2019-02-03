@@ -67,7 +67,9 @@
 #    --frame=framenr
 #    --frames=[[start],[end][,step]]
 #          specifies the frame number (if a single frame) or frame
-#          range (if an animation) to be rendered.
+#          range (if an animation) to be rendered. The start and end
+#          frame numbers can also be specified as the names of timeline
+#          markers.
 #    --layers=layers
 #          specifies the enabling/disabling of specified scene layers.
 #          “layers” consists of a comma-separated list of one or more
@@ -358,6 +360,7 @@ import os
 import io
 import time
 import signal
+import re
 import tempfile
 import shutil
 import bpy
@@ -436,12 +439,22 @@ def format_elapsed(interval, long_form = False, seconds_places = 0) :
         result
 #end format_elapsed
 
-def frame_name(frame_nr) :
+def make_frame_name(frame_nr) :
     "computes the frame filename for the specified frame number. Assumes frame_nr_adjust" \
     " and frame_digits have been initialized."
     return \
         "{:0{digits}d}.png".format(frame_nr + frame_nr_adjust, digits = frame_digits)
-#end frame_name
+#end make_frame_name
+
+def parse_frame_name_or_nr(frame) :
+    if re.search(r"^\d+$", frame) != None :
+        result = int(frame)
+    else :
+        result = bpy.context.scene.timeline_markers[frame].frame
+    #end if
+    return \
+        result
+#end parse_frame_name_or_nr
 
 def get_optional_env(varname, convert = None) :
     # returns the value of the specified environment variable, converted
@@ -717,8 +730,8 @@ frame_digits = int(os.getenv("RENDER_digits"))
 frame_renumber = get_optional_env("RENDER_renumber", int)
 render_out = os.getenv("RENDER_out")
 existing_action = os.getenv("RENDER_existing")
-frame_start = get_optional_env("RENDER_frame_start", int)
-frame_end = get_optional_env("RENDER_frame_end", int)
+frame_start = get_optional_env("RENDER_frame_start", parse_frame_name_or_nr)
+frame_end = get_optional_env("RENDER_frame_end", parse_frame_name_or_nr)
 frame_step = get_optional_env("RENDER_frame_step", int)
 render_samples = get_optional_env("RENDER_samples", int)
 nr_render_threads = os.getenv("RENDER_threads")
@@ -873,7 +886,7 @@ else :
 if crash_protect :
     frames_undone = \
         (
-            set(frame_name(f) for f in range(frame_start, frame_end + 1, frame_step))
+            set(make_frame_name(f) for f in range(frame_start, frame_end + 1, frame_step))
         -
             set(os.listdir(use_render_out))
         )
@@ -972,7 +985,7 @@ while True :
             frames_done = 0
             for frame_nr in range(frame_start, frame_end + 1, frame_step) :
                 if animation :
-                    out_image_name = os.path.join(use_render_out, frame_name(frame_nr))
+                    out_image_name = os.path.join(use_render_out, make_frame_name(frame_nr))
                 else :
                     out_image_name = render_out
                 #end if
