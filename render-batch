@@ -447,7 +447,7 @@ def make_frame_name(frame_nr) :
 #end make_frame_name
 
 def parse_frame_name_or_nr(frame) :
-    if re.search(r"^\d+$", frame) != None :
+    if re.search(r"^[\-\+]?\d+$", frame) != None :
         result = int(frame)
     else :
         result = bpy.context.scene.timeline_markers[frame].frame
