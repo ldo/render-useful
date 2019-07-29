@@ -15,7 +15,7 @@
 #          enables notes in the Compositor.
 #    --enable-cycles
 #          switch the render engine to Cycles. Also enables nodes on all
-#          lamps and materials.
+#          lamps and materials, and the world background.
 #    --enable-osl
 #          turn on Open Shading Language (ignored unless specified with --enable-cycles).
 #    --factory
