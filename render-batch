@@ -10,9 +10,9 @@
 # <https://github.com/ldo/qahirah>) for the Cairo graphics library.
 # Invoke it as follows:
 #
-#     render-batch [options...] blendfile [dest]
+#     render-batch [options...] «blendfile» [«dest»]
 #
-# where blendfile is the .blend file to render, and dest is the name
+# where «blendfile» is the .blend file to render, and «dest» is the name
 # to give the output PNG file if rendering a single frame, or the name
 # of the directory into which to save the numbered frames for an
 # animation. dest must be specified when rendering an animation; if
@@ -24,15 +24,15 @@
 #    --animation
 #          specifies that an animation sequence is to be rendered.
 #          If omitted, a single frame is rendered.
-#    --arrange=[across]|down[:n]
+#    --arrange=[across]|down[:«n»]
 #          specifies how the images are to be arranged, if multiple
 #          cameras are specified: across (the default) or down. The
-#          optional n specifies how many images are to fit in one
+#          optional «n» specifies how many images are to fit in one
 #          row (if across) or column (if down).
-#    --blender=blender
+#    --blender=«blender»
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
-#    --camera=camera
+#    --camera=«camera»
 #          specifies the name of the camera to use. May be specified
 #          more than once, to render images from multiple cameras
 #          across or down (depending on --arrange).
@@ -42,13 +42,13 @@
 #          supported together with --animation and
 #          --existing=(replace-all|skip).
 #          (Best considered experimental for now.)
-#    --digits=digits
+#    --digits=«digits»
 #          for an animation, the number of digits for for formatting
 #          frame numbers to use in names of output frame files. If
 #          omitted, defaults to 4. The generated names will include
 #          leading zeroes as necessary to make up this number of digits,
 #          eg “0001.png”, “0002.png” etc.
-#    --preexec=script
+#    --preexec=«script»
 #          executes the specified Python code prior to the rendering.
 #          May be specified multiple times; the values are concatenated
 #          in sequence, separated by newlines.
@@ -64,22 +64,22 @@
 #                           animation, the rendering continues with any
 #                           remaining frames.
 #          If omitted, the default is error.
-#    --frame=framenr
-#    --frames=[[start],[end][,step]]
+#    --frame=«framenr»
+#    --frames=[[«start»],[«end»][,«step»]]
 #          specifies the frame number (if a single frame) or frame
 #          range (if an animation) to be rendered. The start and end
 #          frame numbers can also be specified as the names of timeline
 #          markers.
-#    --layers=layers
+#    --layers=«layers»
 #          specifies the enabling/disabling of specified scene layers.
-#          “layers” consists of a comma-separated list of one or more
+#          «layers» consists of a comma-separated list of one or more
 #          layer numbers in the range [1 .. 20], optionally preceded
 #          by “+” or “-”. “+” indicates to enable the specified layers
 #          (in addition to those already enabled); “-” indicates to
 #          disable the specified layers, and the absence of either
 #          means the specified layers should be enabled and all others
 #          disabled.
-#    --renumber=renumber
+#    --renumber=«renumber»
 #          for an animation, the starting number to use to generate
 #          names for the output frame files. If omitted, defaults to
 #          the frame start number.
@@ -94,32 +94,32 @@
 #          “convergence_mode”, “interocular_distance” and “pivot”,
 #          being the corresponding fields of a CameraStereoData object.
 #          If omitted, the default settings for the document are used.
-#    --out=dest
+#    --out=«dest»
 #          alternative way to specify the render destination.
-#    --percent=percent
+#    --percent=«percent»
 #          specifies the percentage of the render size at which to
 #          generate the images. If omitted, the default is 100 if
 #          --resolution is specified, otherwise the default is
 #          the setting in the .blend file.
-#    --resolution=[width]:[height]
+#    --resolution=[«width»]:[«height»]
 #          specifies the dimensions in pixels of each rendered image.
 #          At least one of width and height must be specified; if one
 #          is omitted, it is calculated from the other so as to maintain
 #          the existing aspect ratio.
-#    --rotate=angle
+#    --rotate=«angle»
 #          rotates the images by the specified angle in
 #          degrees (which must be a whole multiple of 90).
-#    --samples=samples
+#    --samples=«samples»
 #          the number of samples per pixel (Cycles renderer, or
 #          BI renderer in Raytrace gather mode, only).
-#    --scene=scene
+#    --scene=«scene»
 #          specifies the scene to render.
-#    --threads=n
+#    --threads=«n»
 #          how many concurrent threads to use for rendering
 #          (defaults to “auto”).
-#    --time-remap=old:new
+#    --time-remap=«old»:«new»
 #          alters the rendered frame rate to be
-#          (new ÷ old) × the existing frame rate.
+#          («new» ÷ «old») × the existing frame rate.
 #          If you don’t specify explicit start and end frame numbers,
 #          then the corresponding values set in the .blend file are
 #          automatically remapped to get as close as possible to the
