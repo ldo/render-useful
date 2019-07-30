@@ -1,0 +1,361 @@
+#!/usr/bin/python3
+#+
+# This script does bulk changes the names of files of the form «d».«ext».
+# Invoke it as follows:
+#
+#     renumber-frames «op» «fromdir» «fromrange» «todir» «torange»
+#
+# Copyright 2019 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
+#-
+
+import sys
+import os
+import math
+import enum
+import re
+import shutil
+import warnings
+import getopt
+
+class RangeSpec :
+    "a representation of a range of positive integers, including" \
+    " start but not end. If end is None, then the range contains" \
+    " just the single start value."
+
+    def __init__(self, start, end) :
+        assert \
+            (
+                    isinstance(start, int)
+                and
+                    (end == None or isinstance(end, int))
+            )
+        if start <= 0 :
+            raise ValueError("invalid start")
+        #end if
+        if end != None and end < start :
+            raise ValueError("invalid range")
+        #end if
+        self.start = start
+        self.end = end
+    #end __init__
+
+    def __repr__(self) :
+        return \
+            (
+                "%s(%s)"
+            %
+                (
+                    type(self).__name__,
+                    (
+                        lambda : "%d" % self.start,
+                        lambda : "%d:%d" % (self.start, self.end),
+                    )[self.end != None]()
+                )
+            )
+    #end __repr__
+
+    @property
+    def count(self) :
+        "the number of values in the range."
+        return \
+            (
+                lambda : None,
+                lambda : self.end - self.start,
+            )[self.end != None]()
+    #end count
+
+    def __sub__(r1, r2):
+        "returns (contiguous) remainder of r1 after removing r2."
+        celf = type(r1)
+        if r1.end != None and isinstance(r2, celf) and r2.end != None :
+            if r1.end <= r2.end :
+                if r1.start <= r2.start :
+                    result = celf(r1.start, max(min(r1.end, r2.start), r1.start))
+                else :
+                    result = celf(r1.start, r1.start) # empty
+                #end if
+            elif r1.start >= r2.start :
+                result = celf(min(max(r2.end, r1.start), r1.end), r1.end)
+            else :
+                raise ValueError("cannot compute difference range with a hole")
+            #end if
+        else :
+            result = NotImplemented
+        #end if
+        return \
+            result
+    #end __sub__
+
+    def __reversed__(self) :
+        if self.end != None :
+            val = self.end
+            while val > self.start :
+                val -= 1
+                yield val
+            #end while
+        else :
+            yield self.start
+        #end if
+    #end __reversed__
+
+    def __iter__(self) :
+        if self.end != None :
+            val = self.start
+            while val < self.end :
+                yield val
+                val += 1
+            #end while
+        else :
+            yield self.start
+        #end if
+    #end __iter__
+
+#end RangeSpec
+
+def parse_range_spec(s) :
+    if ":" in s :
+        items = s.split(":", 1)
+        start = int(items[0])
+        end = int(items[1])
+        result = RangeSpec(start, end)
+    elif "-" in s :
+        items = s.split("-", 1)
+        start = int(items[0])
+        end = int(items[1])
+        result = RangeSpec(start, end + 1)
+    elif "+" in s :
+        items = s.split("+", 1)
+        start = int(items[0])
+        count = int(items[1])
+        result = RangeSpec(start, start + count)
+    else :
+        result = RangeSpec(int(s), None)
+    #end if
+    return \
+        result
+#end parse_range_spec
+
+class IgnoredItemWarning(UserWarning) :
+
+    def __init__(self, item, why) :
+        self.args = ["ignoring item %s - %s" % (repr(item), why)]
+    #end __init__
+
+#end IgnoredItemWarning
+
+def rel_symlink(src, dst) :
+    "used for preprocessing a symlink operation -- tries to generate a relative" \
+    " form of symlink if src is a relative path."
+    if src.startswith("/") :
+        use_src = src
+    else :
+        use_src = os.path.abspath(src)
+        use_dst = os.path.abspath(dst)
+        commondir = os.path.commonpath((use_src, use_dst)) + "/"
+        use_src = use_src[len(commondir):]
+        use_dst = use_dst[len(commondir):]
+        sys.stderr.write("%s and %s have %s in common\n"% (repr(use_src), repr(use_dst), repr(commondir))) # debug
+        use_src = "../" * (len(use_dst.split("/")) - 1) + use_src
+    #end if
+    return \
+        (use_src, dst)
+#end rel_symlink
+
+class OP(enum.Enum) :
+    "the operations I can perform on frame files."
+    MOVE = 1
+    COPY = 2
+    SYMLINK = 3
+    HARDLINK = 4
+
+    @property
+    def keeps_original(self) :
+        "does the operation keep a file with the original name."
+        return \
+            self != self.MOVE
+    #end keeps_original
+
+    @property
+    def preprocess(self) :
+        "a function to perform necessary preprocessing of arguments, if any."
+        return \
+            {
+                OP.SYMLINK : rel_symlink,
+            }.get(self)
+    #end preprocess
+
+    @property
+    def func(self) :
+        "the function that performs the operation, called as «func»(«src», «dst»)."
+        return \
+            {
+                OP.MOVE : os.rename,
+                OP.COPY : shutil.copy2,
+                OP.SYMLINK : os.symlink,
+                OP.HARDLINK : os.link,
+            }[self]
+    #end func
+
+#end OP
+
+#+
+# Mainline
+#-
+
+to_nr_digits = None
+op = None
+doit = True
+opts, args = getopt.getopt \
+  (
+    sys.argv[1:],
+    "",
+    ["digits=", "dry-run"]
+  )
+for keyword, value in opts :
+    if keyword == "--digits" :
+        to_nr_digits = int(value)
+        if to_nr_digits < 1 :
+            raise getopt.GetoptError("--digits value must be 1 or more")
+        #end if
+    elif keyword == "--dry-run" :
+        doit = False
+    #end if
+#end for
+if len(args) != 5 :
+    raise getopt.GetoptError("need exactly 5 args, «op» «from_dir» «from_range» «to_dir» «to_range»")
+#end if
+
+op, from_dir, from_range, to_dir, to_range = args
+op = OP[op.upper()]
+from_range = parse_range_spec(from_range)
+to_range = parse_range_spec(to_range)
+if from_range.count == None :
+    raise getopt.GetoptError("«from» spec must be a range")
+#end if
+if to_range.count == None :
+    to_range = RangeSpec(to_range.start, to_range.start + from_range.count)
+elif to_range.count != from_range.count :
+    raise getopt.GetoptError \
+      (
+        "inconsistent counts in range specs: %d vs %d" % (from_range.count, to_range.count)
+      )
+#end if
+if not os.path.isdir(from_dir) :
+    raise getopt.GetoptError("no such directory: %s" % repr(from_dir))
+#end if
+if to_dir == "" :
+    to_dir = from_dir
+#end if
+same_dir = os.path.samefile(from_dir, to_dir)
+
+ext = None
+from_nr_digits = None
+found_numbers = set()
+pattern = re.compile(r"^(\d+)\.(.+)$")
+for item in os.listdir(from_dir) :
+    pieces = pattern.search(item)
+    if pieces != None :
+        this_ext = pieces.group(2)
+        if ext == None :
+            ext = this_ext
+        elif ext != this_ext :
+            raise RuntimeError \
+              (
+                "inconsistent extensions found: %s vs %s" % (repr(ext), repr(this_ext))
+              )
+        #end if
+        this_nr_digits = len(pieces.group(1))
+        if from_nr_digits == None :
+            from_nr_digits = this_nr_digits
+        elif from_nr_digits != this_nr_digits :
+            raise RuntimeError \
+              (
+                    "inconsistent numbers of digits found: %s[%d] (expecting %d)"
+                %
+                    (repr(item), this_nr_digits, from_nr_digits)
+              )
+        #end if
+        item_nr = int(pieces.group(1), 10)
+        if item_nr in found_numbers :
+            # shouldn’t occur?
+            raise RuntimeError("duplicate item number %d found" % item_nr)
+        #end if
+        found_numbers.add(item_nr)
+    else :
+        warnings.warn(IgnoredItemWarning(item, "non-numeric name or no extension"))
+    #end if
+#end for
+if len(found_numbers) == 0 :
+    raise RuntimeError("no suitable items found in specified directory")
+#end if
+if to_nr_digits == None :
+    to_nr_digits = from_nr_digits
+elif math.floor(math.log10(to_range.end - 1)) + 1 > to_nr_digits :
+    raise ValueError \
+      (
+            "output nr digits %d too small for renaming items up to %d"
+        %
+            (to_nr_digits, to_range.end - 1)
+      )
+#end if
+missing = set(i for i in from_range if i not in found_numbers)
+if len(missing) != 0 :
+    raise RuntimeError \
+      (
+            "missing frames in from_dir: %s"
+        %
+            ", ".join("%d" % i for i in sorted(missing))
+      )
+#end if
+if same_dir :
+    if op.keeps_original :
+        duplicate = set \
+          (
+            i
+            for i in found_numbers
+            if i in to_range
+          )
+    else :
+        duplicate = set \
+          (
+            i
+            for i in found_numbers
+            if i in to_range - from_range
+          )
+    #end if
+else :
+    duplicate = set \
+      (
+        i
+        for i in to_range
+        if os.path.exists(os.path.join(to_dir, "%%0%dd.%%s" % to_nr_digits % (i, ext)))
+      )
+#end if
+if len(duplicate) != 0 :
+    raise RuntimeError \
+      (
+            "already-existing frames in to_dir: %s"
+        %
+            ", ".join("%d" % i for i in sorted(duplicate))
+      )
+#end if
+if to_range.end <= from_range.end :
+    from_iter = iter(from_range)
+    to_iter = iter(to_range)
+else :
+    from_iter = reversed(from_range)
+    to_iter = reversed(to_range)
+#end if
+for i, j in zip(from_iter, to_iter) :
+    src = os.path.join(from_dir, "%%0%dd.%%s" % from_nr_digits % (i, ext))
+    dst = os.path.join(to_dir, "%%0%dd.%%s" % to_nr_digits % (j, ext))
+    preprocess = op.preprocess
+    if preprocess != None :
+        src, dst = preprocess(src, dst)
+    #end if
+    sys.stderr.write("%s(%s, %s)\n" % (op.func.__name__, repr(src), repr(dst))) # debug
+    if doit :
+        op.func(src, dst)
+    #end if
+#end for
