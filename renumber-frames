@@ -307,7 +307,7 @@ if len(missing) != 0 :
             ", ".join("%d" % i for i in sorted(missing))
       )
 #end if
-if same_dir :
+if same_dir and to_nr_digits == from_nr_digits :
     if op.keeps_original :
         duplicate = set \
           (
