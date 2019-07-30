@@ -155,7 +155,6 @@ def rel_symlink(src, dst) :
         commondir = os.path.commonpath((use_src, use_dst)) + "/"
         use_src = use_src[len(commondir):]
         use_dst = use_dst[len(commondir):]
-        sys.stderr.write("%s and %s have %s in common\n"% (repr(use_src), repr(use_dst), repr(commondir))) # debug
         use_src = "../" * (len(use_dst.split("/")) - 1) + use_src
     #end if
     return \
