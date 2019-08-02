@@ -45,7 +45,7 @@ def format_elapsed(interval, long_form = False, seconds_places = 0) :
     " long_form indicates whether to display the units in long form or short form," \
     " while seconds_places indicates the number of decimal places to use for showing" \
     " the seconds."
-    interval = round(interval)
+    interval = round(interval, seconds_places)
     unitindex = 0
     result = ""
     while True :
@@ -216,7 +216,15 @@ sys.stdout.write \
     %
         {
             "nr_frames" : nr_frames,
-            "time_per_frame" : format_elapsed(time_per_frame),
+            "time_per_frame" : format_elapsed
+              (
+                time_per_frame,
+                seconds_places =
+                    (
+                        (3, 1)[time_per_frame >= 1],
+                        0,
+                    )[time_per_frame >= 10]
+              ),
             "time_per_frame_error" :
                 (lambda : "", lambda : " ±%ds" % round(error_estimate))
                     [error_estimate != None](),
