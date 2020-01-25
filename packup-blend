@@ -210,7 +210,8 @@ for item in sorted(deps) : # might as well include dependencies in consistent or
           )
           # keep relative paths relative in archive
     else :
-        pass # ignore up-level paths, absolute paths and paths with no leading “/”
+        # ignore up-level paths, absolute paths and paths with no leading “/”
+        sys.stderr.write("%s: ignoring %s\n" % (sys.argv[0], repr(item)))
     #end if
 #end for
 
