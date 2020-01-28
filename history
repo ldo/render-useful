@@ -436,7 +436,7 @@ recognized_commands = \
             "args" : 2,
             "opts" : (),
             "action" : cmd_checkout,
-            "help_usage" : "«blendfile» «commit» [«dest»]",
+            "help_usage" : "«blendfile» «commit»",
             "help_descr" :
                 "checks out a previously-saved commit from the repo for the"
                 " specified .blend file",
