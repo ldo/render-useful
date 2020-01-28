@@ -107,16 +107,12 @@ class RepoContext :
             env.pop("GIT_DIR", None)
             # Cannot use GIT_DIR, as that creates a bare repo, which cannot be committed to.
             work_dir = self.get_workdir_name()
-            env = None
         else :
             # assume repo already exists, use parent directory of .blend file as work dir
             work_dir = os.path.split(self.blendfilename)[0]
             env["GIT_DIR"] = self.get_repo_name()
         #end if
         if extra_env != None :
-            if env == None :
-                env = {}
-            #end if
             for key in extra_env :
                 env[key] = extra_env[key]
             #end for
