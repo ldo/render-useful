@@ -392,7 +392,9 @@ def format_elapsed(interval, long_form = False, seconds_places = 0) :
     " long_form indicates whether to display the units in long form or short form," \
     " while seconds_places indicates the number of decimal places to use for showing" \
     " the seconds."
-    interval = round(interval)
+    if seconds_places == 0 :
+        interval = round(interval)
+    #end if
     unitindex = 0
     result = ""
     while True :
@@ -406,12 +408,15 @@ def format_elapsed(interval, long_form = False, seconds_places = 0) :
             factor = None
             place = interval
         #end if
-        place = "{:.{places}f}{}".format \
-          (
-            place,
-            (unit[1], " " + unit[2:4][place != 1])[long_form],
-            places = (0, seconds_places)[unitindex == 0]
-          )
+        place = \
+            (
+                "%%.%df%%s" % (0, seconds_places)[unitindex == 0]
+            %
+                (
+                    place,
+                    (unit[1], " " + unit[2:4][place != 1])[long_form],
+                )
+            )
         result = \
             (
                 place
@@ -435,7 +440,7 @@ def make_frame_name(frame_nr) :
     "computes the frame filename for the specified frame number. Assumes frame_nr_adjust" \
     " and frame_digits have been initialized."
     return \
-        "{:0{digits}d}.png".format(frame_nr + frame_nr_adjust, digits = frame_digits)
+        "%%0.%dd%%s" % frame_digits % (frame_nr + frame_adjust, outfile_ext)
 #end make_frame_name
 
 def parse_frame_name_or_nr(frame) :
@@ -761,7 +766,7 @@ camera_names = []
 i = 0
 while True :
     i += 1
-    camera_name = get_optional_env("RENDER_camera_{}".format(i))
+    camera_name = get_optional_env("RENDER_camera_%d" % i)
     if camera_name == None :
         break
     camera_names.append(camera_name)
@@ -869,7 +874,7 @@ if animation and existing_action == "replace-all" :
     if render_out.endswith("/") :
         render_out = render_out[:-1]
     #end if
-    outtempdir = "{}-tmp".format(render_out)
+    outtempdir = render_out + "-tmp"
     try :
         os.mkdir(outtempdir)
     except FileExistsError :
@@ -904,12 +909,12 @@ while True :
         with (DummyTempDir, tempfile.TemporaryDirectory)[need_worktemp](prefix = "render-") as tempdir :
             temp_image_names = None
             if len(camera_names) > 1 :
-                temp_image_names = tuple("camera_{}".format(i + 1) for i in range(len(camera_names)))
+                temp_image_names = tuple("camera_%d" % (i + 1) for i in range(len(camera_names)))
             elif rotate != 0 :
                 temp_image_names = ("unrotated",)
             #end if
             if temp_image_names != None :
-                temp_image_names = tuple(os.path.join(tempdir, name) + ".png" for name in temp_image_names)
+                temp_image_names = tuple(os.path.join(tempdir, name) + outfile_ext for name in temp_image_names)
             #end if
 
             if collections_str != None :
@@ -1081,9 +1086,9 @@ while True :
                     #end if
                     frames_done += 1
                 elif existing_action in ("skip", "replace-all") :
-                    sys.stdout.write("Skipped {}\n".format(out_image_name))
+                    sys.stdout.write("Skipped %s\n" % out_image_name)
                 else :
-                    raise RuntimeError("Output image “{}” already exists".format(out_image_name))
+                    raise RuntimeError("Output image “%s” already exists" % out_image_name)
                 #end if
             #end for
             if outtempdir != None :
@@ -1092,17 +1097,18 @@ while True :
                 elif os.path.isdir(render_out) :
                     shutil.rmtree(render_out)
                 #end if
-                sys.stdout.write("Rename dir {} => {}\n".format(outtempdir, render_out))
+                sys.stdout.write("Rename dir %s => %s\n" % (outtempdir, render_out))
                 os.rename(outtempdir, render_out)
             #end if
             now = time.time()
             sys.stdout.write \
               (
-                    "Rendered {} {} in {}\n".format
+                    "Rendered %d %s in %s\n"
+                %
                       (
                         frames_done,
                         ("frame", "frames")[frames_done != 1],
-                        format_elapsed(now - start_time)
+                        format_elapsed(now - start_time),
                       )
               )
         #end with
