@@ -13,11 +13,12 @@
 #     render-batch [options...] «blendfile» [«dest»]
 #
 # where «blendfile» is the .blend file to render, and «dest» is the name
-# to give the output PNG file if rendering a single frame, or the name
+# to give the output image file if rendering a single frame, or the name
 # of the directory into which to save the numbered frames for an
 # animation. dest must be specified when rendering an animation; if
 # omitted for a single frame, it defaults to the basename of the input
-# blend file with “.png” appended, saved in the current directory.
+# blend file with the appropriate image file extension appended, saved
+# in the current directory.
 #
 # Valid options are
 #
@@ -62,6 +63,11 @@
 #                           animation, the rendering continues with any
 #                           remaining frames.
 #          If omitted, the default is error.
+#    --format=«format»[:«mode»][:«depth»]
+#          specifies the format for rendered image files. «format» can be
+#          PNG, OPENEXR or OPENEXR_MULTILAYER; «mode» can be BW, RGB or RGBA,
+#          and «depth» can be 8 or 16 for PNG or 16 or 32 for the OpenEXR
+#          formats. «mode» and «depth» may be specified in either order.
 #    --frame=«framenr»
 #    --frames=[[«start»],[«end»][,«step»]]
 #          specifies the frame number (if a single frame) or frame range (if an
@@ -137,7 +143,7 @@
 # two eye images side-by-side, the image for the right eye on
 # the left and vice versa, for viewing as “cross-eyed” stereo.
 #
-# Copyright 2013-2019 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2013-2020 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -164,6 +170,7 @@ render_width=
 render_height=
 rotate=
 out=
+outformat=
 existing=error
 animation=
 crash_protect=
@@ -221,6 +228,8 @@ for ((;;)); do
             opterror "--existing value must be “error”, “overwrite”, “replace-all” or “skip”"
         fi
         existing="$val"
+    elif [ "$opt" = "format" ]; then
+        outformat="$val"
     elif [ "$opt" = "frame" -o "$opt" = "frames" ]; then
         frame_spec="$val"
     elif [ "$opt" = "out" ]; then
@@ -325,10 +334,11 @@ export RENDER_vse="$vse"
 if [ -n "$out" ]; then
     RENDER_out="$out"
 else
-    RENDER_out="${blendfile##*/}"
-    RENDER_out="${RENDER_out%%.*}.png"
+    # let Python code work it out
+    RENDER_out=""
 fi
 export RENDER_out
+export RENDER_outformat="$outformat"
 export RENDER_arrange="$arrange"
 export RENDER_existing="$existing"
 export RENDER_scene="$scene"
@@ -519,6 +529,90 @@ def validate_enum(vals) :
     return \
         validate
 #end validate_enum
+
+recognized_image_formats = \
+    [ # is it worth adding others?
+        {
+            "names" : {"exr", "open_exr", "openexr"},
+            "canonical_name" : "OPEN_EXR",
+            "colour_modes" : {"BW", "RGB", "RGBA"},
+            "colour_depths" : {16, 32},
+            "ext" : ".exr",
+        },
+        {
+            "names" : {"exr_multilayer", "open_exr_multilayer", "openexr_multilayer"},
+            "canonical_name" : "OPEN_EXR_MULTILAYER",
+            "colour_modes" : {"BW", "RGB", "RGBA"},
+            "colour_depths" : {16, 32},
+            "ext" : ".exr",
+        },
+        {
+            "names" : {"png"},
+            "canonical_name" : "PNG",
+            "colour_modes" : {"BW", "RGB", "RGBA"},
+            "colour_depths" : {8, 16},
+            "ext" : ".png",
+        },
+    ]
+
+def parse_format_spec(s) :
+    settings = dict((k, None) for k in ("color_mode", "color_depth"))
+    items = s.strip().split(":")
+    format = None
+    if len(items) != 0 :
+        format_code = items.pop(0)
+        formats = iter(recognized_image_formats)
+        while True :
+            try_format = next(formats, None)
+            if try_format == None :
+                raise ValueError("unrecognized output format “%s”" % format_code)
+            #end if
+            if format_code.lower() in try_format["names"] :
+                format = try_format
+                break
+            #end if
+        #end while
+    #end if
+    while True :
+        if len(items) == 0 :
+            break
+        item = items.pop(0)
+        try :
+            item = int(item, 10)
+        except ValueError :
+            pass
+        #end try
+        if isinstance(item, int) :
+            if item not in format["colour_depths"] :
+                raise ValueError("unrecognized output colour depth %d" % item)
+            #end if
+            if settings["color_depth"] != None :
+                raise ValueError \
+                  (
+                        "multiple colour depth specifications: %d and %d"
+                    %
+                        (settings["color_depth"], item)
+                  )
+            #end if
+            settings["color_depth"] = item
+        else :
+            if item.upper() not in format["colour_modes"] :
+                raise ValueError("unrecognized output colour mode “%s”" % item)
+            #end if
+            if settings["color_mode"] != None :
+                raise ValueError \
+                  (
+                        "multiple colour mode specifications: “%s” and “%s”"
+                    %
+                        (settings["color_mode"], item)
+                  )
+            #end if
+            settings["color_mode"] = item.upper()
+        #end if
+    #end while
+    return \
+        format, settings
+#end parse_format_spec
 
 def parse_collections_spec(s) :
     # Note I do not recognize the names of scene master collections, since
@@ -734,6 +828,10 @@ preexec = get_optional_env("RENDER_preexec")
 crossed = os.getenv("RENDER_crossed", "") != ""
 frame_digits = int(os.getenv("RENDER_digits"))
 frame_renumber = get_optional_env("RENDER_renumber", int)
+outformat = get_optional_env("RENDER_outformat", parse_format_spec)
+if outformat != None :
+    outformat, outformatsettings = outformat
+#end if
 render_out = os.getenv("RENDER_out")
 existing_action = os.getenv("RENDER_existing")
 frame_start = get_optional_env("RENDER_frame_start", parse_frame_name_or_nr)
@@ -788,6 +886,40 @@ if scene_name != None :
     bpy.context.screen.scene = bpy.data.scenes[scene_name]
 #end if
 active_scene = bpy.context.scene
+if outformat != None :
+    outfile_ext = outformat["ext"]
+    active_scene.render.image_settings.file_format = outformat["canonical_name"]
+    for k in outformatsettings :
+        val = outformatsettings[k]
+        if val != None :
+            setattr(active_scene.render.image_settings, k, str(val))
+        #end if
+    #end for
+else :
+    outformat = list \
+      (
+        f for f in recognized_image_formats
+        if active_scene.render.image_settings.file_format == f["canonical_name"]
+      )
+    if len(outformat) == 0 :
+        raise ValueError \
+          (
+                "cannot handle default output format of “%s”"
+            %
+                active_scene.render.image_settings.file_format
+          )
+    #end if
+    outformat = outformat[0]
+    outfile_ext = outformat["ext"]
+#end if
+if render_out == "" :
+    render_out = os.path.splitext(os.path.basename(blendfile))[0] + outfile_ext
+#end if
+if (len(camera_names) > 1 or rotate != 0) and outformat["canonical_name"] != "PNG" :
+    raise ValueError("cannot perform stitch/rotate operations on non-PNG files")
+    # Maybe I should dispense with Qahirah and use some external utility program
+    # to perform these functions ...
+#end if
 doing_stereo = False # to begin with
 if hasattr(active_scene.render, "use_multiview") :
     if stereo_settings != None :
@@ -982,7 +1114,6 @@ while True :
                 #end if
             #end if
 
-            active_scene.render.image_settings.file_format = "PNG"
             compose_offset = None
             if preexec != None :
                 exec(preexec)
