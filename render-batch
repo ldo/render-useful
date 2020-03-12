@@ -402,9 +402,7 @@ def format_elapsed(interval, long_form = False, seconds_places = 0) :
     " long_form indicates whether to display the units in long form or short form," \
     " while seconds_places indicates the number of decimal places to use for showing" \
     " the seconds."
-    if seconds_places == 0 :
-        interval = round(interval)
-    #end if
+    interval = round(interval, seconds_places)
     unitindex = 0
     result = ""
     while True :
