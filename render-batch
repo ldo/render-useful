@@ -95,6 +95,8 @@
 #          “convergence_mode”, “interocular_distance” and “pivot”, being the
 #          corresponding fields of a CameraStereoData object. If omitted, the
 #          default settings for the document are used.
+#    --only-view-layer=«view-layer-name»
+#          only renders the specified view layer. Also turns off compositing.
 #    --out=«dest»
 #          alternative way to specify the render destination.
 #    --percent=«percent»
@@ -163,6 +165,7 @@ stereo_settings=
 do_stereo=
 collections=
 use_camera_collections=
+only_view_layer=
 digits=4
 reunumber=
 render_percentage=
@@ -232,6 +235,8 @@ for ((;;)); do
         outformat="$val"
     elif [ "$opt" = "frame" -o "$opt" = "frames" ]; then
         frame_spec="$val"
+    elif [ "$opt" = "only-view-layer" ]; then
+        only_view_layer="$val"
     elif [ "$opt" = "out" ]; then
         out="$val"
     elif [ "$opt" = "percent" ]; then
@@ -344,6 +349,7 @@ export RENDER_existing="$existing"
 export RENDER_scene="$scene"
 export RENDER_collections="$collections"
 export RENDER_use_camera_collections="$use_camera_collections"
+export RENDER_only_view_layer="$only_view_layer"
 export RENDER_samples="$samples"
 export RENDER_threads="$threads"
 export RENDER_percentage="$render_percentage"
@@ -884,6 +890,21 @@ if scene_name != None :
     bpy.context.screen.scene = bpy.data.scenes[scene_name]
 #end if
 active_scene = bpy.context.scene
+only_view_layer = os.getenv("RENDER_only_view_layer")
+if only_view_layer != "" :
+    valid_view_layer = False
+    for view_layer in active_scene.view_layers :
+        use_this = view_layer.name == only_view_layer
+        if use_this :
+            valid_view_layer = True
+        #end if
+        view_layer.use = use_this
+    #end for
+    if not valid_view_layer :
+        raise ValueError("unrecognized view layer name “%s”" % only_view_layer)
+    #end if
+    active_scene.use_nodes = False
+#end if
 if outformat != None :
     outfile_ext = outformat["ext"]
     active_scene.render.image_settings.file_format = outformat["canonical_name"]
