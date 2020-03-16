@@ -5,9 +5,7 @@
 # the command line, overriding settings from the .blend file. It also
 # has the option for stereoscopic rendering, by doing the render
 # twice, offsetting the camera along its local X axis, and combining
-# the resulting images to produce a stereo pair. Besides Blender, it
-# also needs the Qahirah wrapper (<https://gitlab.com/ldo/qahirah> or
-# <https://github.com/ldo/qahirah>) for the Cairo graphics library.
+# the resulting images to produce a stereo pair.
 # Invoke it as follows:
 #
 #     render-batch [options...] «blendfile» [«dest»]
@@ -25,18 +23,11 @@
 #    --animation
 #          specifies that an animation sequence is to be rendered. If omitted, a
 #          single frame is rendered.
-#    --arrange=[across]|down[:«n»]
-#          specifies how the images are to be arranged, if multiple cameras are
-#          specified: across (the default) or down. The optional «n» specifies
-#          how many images are to fit in one row (if across) or column (if
-#          down).
 #    --blender=«blender»
 #          specifies the path to the Blender executable. Defaults to searching
 #          for the name “blender” in your PATH.
 #    --camera=«camera»
-#          specifies the name of the camera to use. May be specified more than
-#          once, to render images from multiple cameras across or down
-#          (depending on --arrange).
+#          specifies the name of the camera to use.
 #    --crash-protect
 #          spawns a separate child process to do the rendering, with automatic
 #          resume after a crash. Currently only supported together with
@@ -108,9 +99,6 @@
 #          one of width and height must be specified; if one is omitted, it is
 #          calculated from the other so as to maintain the existing aspect
 #          ratio.
-#    --rotate=«angle»
-#          rotates the images by the specified angle in degrees (which must be a
-#          whole multiple of 90).
 #    --samples=«samples»
 #          the number of samples per pixel (Cycles renderer, or BI renderer in
 #          Raytrace gather mode, only).
@@ -156,11 +144,10 @@ opterror()
   } # opterror
 
 blender=blender
-nr_cameras=0
-arrange=
 scene=
 samples=
 vse=
+camera=
 stereo_settings=
 do_stereo=
 collections=
@@ -171,7 +158,6 @@ reunumber=
 render_percentage=
 render_width=
 render_height=
-rotate=
 out=
 outformat=
 existing=error
@@ -199,25 +185,10 @@ for ((;;)); do
     opt="${opt%%=*}"
     if [ "$opt" = "animation" ]; then
         animation=1
-    elif [ "$opt" = "arrange" ]; then
-        val1="${val%%:*}"
-        if [ "$val1" != "$val" ]; then
-            val2="${val#*:}"
-        else
-            val2=""
-        fi
-        if [ "$val1" != "across" -a "$val1" != "down" ]; then
-            opterror "--arrange type must be “across” or “down”"
-        fi
-        if [[ "$val2" = *[^0-9]* ]]; then
-            opterror "--arrange value must be integer"
-        fi
-        arrange="$val"
     elif [ "$opt" = "blender" ]; then
         blender="$val"
     elif [ "$opt" = "camera" ]; then
-        nr_cameras=$((nr_cameras + 1))
-        export RENDER_camera_${nr_cameras}="$val"
+        camera="$val"
     elif [ "$opt" = "collections" ]; then
         collections="$val"
     elif [ "$opt" = "crash-protect" ]; then
@@ -256,11 +227,6 @@ for ((;;)); do
         if [ -z "$render_percentage" ]; then
             render_percentage=100
         fi
-    elif [ "$opt" = "rotate" ]; then
-        if [ $(($val % 90)) != 0 ]; then
-            opterror "--rotate value must be multiple of 90"
-        fi
-        rotate=$(($val / 90))
     elif [ "$opt" = "samples" ]; then
         samples="$val"
     elif [ "$opt" = "scene" ]; then
@@ -295,14 +261,8 @@ fi
 blendfile="$1"
 export RENDER_blendfile="$blendfile"
 
-if [ -n "$do_stereo" -a $nr_cameras -gt 1 ]; then
-    opterror "cannot specify --stereo with more than one --camera"
-fi
-if [ $nr_cameras -ne 0 ]; then
-    if [ -n "$vse" ]; then
-        opterror "cannot specify --vse with --camera"
-    fi
-    unset RENDER_camera_$((nr_cameras + 1)) # just in case
+if [ -n "$camera" -a -n "$vse" ]; then
+    opterror "cannot specify --vse with --camera"
 fi
 if [ -n "$do_stereo" -a -n "$vse" ]; then
     opterror "cannot specify --vse with --stereo"
@@ -344,9 +304,9 @@ else
 fi
 export RENDER_out
 export RENDER_outformat="$outformat"
-export RENDER_arrange="$arrange"
 export RENDER_existing="$existing"
 export RENDER_scene="$scene"
+export RENDER_camera="$camera"
 export RENDER_collections="$collections"
 export RENDER_use_camera_collections="$use_camera_collections"
 export RENDER_only_view_layer="$only_view_layer"
@@ -355,7 +315,6 @@ export RENDER_threads="$threads"
 export RENDER_percentage="$render_percentage"
 export RENDER_width="$render_width"
 export RENDER_height="$render_height"
-export RENDER_rotate="$rotate"
 export RENDER_preexec="$preexec"
 export RENDER_crossed="$crossed"
 export RENDER_trusted="$trusted"
@@ -369,16 +328,9 @@ import io
 import time
 import signal
 import re
-import tempfile
 import shutil
 import bpy
 import mathutils
-import qahirah as qah
-from qahirah import \
-    CAIRO, \
-    Colour, \
-    Rect, \
-    Vector
 
 try :
     os.wait() # gobble zombie child of shell which was previously in this process slot
@@ -482,24 +434,6 @@ def get_optional_env(varname, convert = None) :
     return \
         val
 #end get_optional_env
-
-class DummyTempDir :
-    "a replacement for tempfile.TemporaryDirectory for when I\n" \
-    "don’t actually need a temp directory."
-
-    def __init__(self, prefix) :
-        pass
-    #end __init__
-
-    def __enter__(self) :
-        return "dummy" # got to return something usable as part of a pathname
-    #end __enter__
-
-    def __exit__(self, exception_type, exception_value, traceback) :
-        pass
-    #end __exit__
-
-#end DummyTempDir
 
 def validate_float_at_least(minval) :
     minval = float(minval)
@@ -728,43 +662,6 @@ def remap_frame_nr(frame_nr) :
         result
 #end remap_frame_nr
 
-def get_image_from_png(filename) :
-    # loads the contents of a PNG file as an ImageSurface, applying any
-    # appropriate rotation.
-    image = qah.ImageSurface.create_from_png(filename)
-    if rotate != 0 :
-        image_format = image.format
-        src_dimensions = image.dimensions
-        if rotate & 1 != 0 :
-            dst_dimensions = Vector(src_dimensions.y, src_dimensions.x)
-        else :
-            dst_dimensions = src_dimensions
-        #end if
-        rotate_point = \
-            Vector \
-              (
-                x = (src_dimensions.y, src_dimensions.x, src_dimensions.x)[rotate - 1],
-                y = (src_dimensions.y, src_dimensions.y, src_dimensions.x)[rotate - 1],
-              )
-        src = \
-            (qah.Pattern.create_for_surface(image)
-                .set_matrix(qah.Matrix.rotate(- rotate / 4 * qah.circle, rotate_point / 2))
-            )
-        image = qah.ImageSurface.create \
-          (
-            format = image_format,
-            dimensions = dst_dimensions
-          )
-        (qah.Context.create(image)
-            .set_source(src)
-            .paint()
-        )
-        image.flush()
-    #end if
-    return \
-        image
-#end get_image_from_png
-
 def set_collections(replace_collections = None, add_collections = None, remove_collections = None) :
     "sets the current set of active collections to those in replace_collections, or" \
     " alternatively adds add_collections to the active collections and removes" \
@@ -816,12 +713,6 @@ if render_percentage != None :
 #end if
 render_width = get_optional_env("RENDER_width", int)
 render_height = get_optional_env("RENDER_height", int)
-rotate = get_optional_env("RENDER_rotate", int)
-if rotate != None :
-    rotate %= 4
-else :
-    rotate = 0
-#end if
 animation = os.getenv("RENDER_animation", "") != ""
 crash_protect = os.getenv("RENDER_crash_protect", "") != ""
 time_remap = get_optional_env("RENDER_time_remap")
@@ -864,26 +755,7 @@ if nr_render_threads != None :
     #end if
 #end if
 scene_name = get_optional_env("RENDER_scene")
-camera_names = []
-i = 0
-while True :
-    i += 1
-    camera_name = get_optional_env("RENDER_camera_%d" % i)
-    if camera_name == None :
-        break
-    camera_names.append(camera_name)
-#end while
-arrange = get_optional_env("RENDER_arrange")
-arrange_limit = None
-if arrange != None :
-    arrange = arrange.split(":")
-    if len(arrange) > 1 :
-        arrange, arrange_limit = arrange
-        arrange_limit = int(arrange_limit)
-    else :
-        arrange = arrange[0]
-    #end if
-#end if
+camera_name = get_optional_env("RENDER_camera")
 collections_str = os.getenv("RENDER_collections", None)
 use_camera_collections = os.getenv("RENDER_use_camera_collections", "") != ""
 if scene_name != None :
@@ -934,11 +806,6 @@ else :
 if render_out == "" :
     render_out = os.path.splitext(os.path.basename(blendfile))[0] + outfile_ext
 #end if
-if (len(camera_names) > 1 or rotate != 0) and outformat["canonical_name"] != "PNG" :
-    raise ValueError("cannot perform stitch/rotate operations on non-PNG files")
-    # Maybe I should dispense with Qahirah and use some external utility program
-    # to perform these functions ...
-#end if
 doing_stereo = False # to begin with
 if hasattr(active_scene.render, "use_multiview") :
     if stereo_settings != None :
@@ -976,7 +843,7 @@ else :
         raise RuntimeError("Blender version does not support multiview")
     #end if
 #end if
-assert not vse_render or not doing_stereo and len(camera_names) == 0
+assert not vse_render or not doing_stereo and camera_name == None
 if doing_stereo :
     active_scene.render.image_settings.views_format = "STEREO_3D"
     active_scene.render.image_settings.stereo_3d_format.display_mode = "SIDEBYSIDE"
@@ -1016,7 +883,6 @@ if animation :
 #end if
 sys.stdout.write("frame range = %d to %d by %d\n" % (frame_start, frame_end, frame_step)) # debug
 
-need_worktemp = len(camera_names) > 1 or rotate != 0
 if animation and existing_action == "replace-all" :
     # Create a temporary output directory into which to save the new frames.
     # This is not automatically deleted on error, so you at least get the
@@ -1057,189 +923,99 @@ while True :
         child_pid = 0
     #end if
     if child_pid == 0 :
-        with (DummyTempDir, tempfile.TemporaryDirectory)[need_worktemp](prefix = "render-") as tempdir :
-            temp_image_names = None
-            if len(camera_names) > 1 :
-                temp_image_names = tuple("camera_%d" % (i + 1) for i in range(len(camera_names)))
-            elif rotate != 0 :
-                temp_image_names = ("unrotated",)
-            #end if
-            if temp_image_names != None :
-                temp_image_names = tuple(os.path.join(tempdir, name) + outfile_ext for name in temp_image_names)
-            #end if
 
-            if collections_str != None :
-                set_collections(*parse_collections_spec(collections_str))
+        if collections_str != None :
+            set_collections(*parse_collections_spec(collections_str))
+        #end if
+        if time_remap != None :
+            active_scene.render.frame_map_old = time_remap[0]
+            active_scene.render.frame_map_new = time_remap[1]
+        #end if
+        if camera_name != None :
+            active_scene.camera = bpy.data.objects[camera_name]
+        #end if
+        if render_threads_mode != None :
+            active_scene.render.threads_mode = render_threads_mode
+        #end if
+        if nr_render_threads != None :
+            active_scene.render.threads = nr_render_threads
+        #end if
+        active_camera = active_scene.camera
+        if doing_stereo :
+            for param in stereo_params :
+                setattr(active_camera.data.stereo, param, stereo_params[param])
             #end if
-            if time_remap != None :
-                active_scene.render.frame_map_old = time_remap[0]
-                active_scene.render.frame_map_new = time_remap[1]
-            #end if
-            if len(camera_names) == 1 :
-                active_scene.camera = bpy.data.objects[camera_names[0]]
-            #end if
-            #end if
-            if render_threads_mode != None :
-                active_scene.render.threads_mode = render_threads_mode
-            #end if
-            if nr_render_threads != None :
-                active_scene.render.threads = nr_render_threads
-            #end if
-            active_camera = active_scene.camera
-            #end if
+        #end if
+        if use_camera_collections  :
+            set_collections_from_object(active_camera)
+        #end if
 
-            if render_width != None or render_height != None :
-                # maintain aspect ratio if only one is specified
-                if render_width == None :
-                    render_width = round(render_height * active_scene.render.resolution_x / active_scene.render.resolution_y)
-                #end if
-                if render_height == None :
-                    render_height = round(render_width * active_scene.render.resolution_y / active_scene.render.resolution_x)
-                #end if
-                active_scene.render.resolution_x = render_width
-                active_scene.render.resolution_y = render_height
+        if render_width != None or render_height != None :
+            # maintain aspect ratio if only one is specified
+            if render_width == None :
+                render_width = round(render_height * active_scene.render.resolution_x / active_scene.render.resolution_y)
             #end if
-            if render_percentage != None :
-                if isinstance(render_percentage, float) :
-                    active_scene.render.resolution_x = \
-                        round(active_scene.render.resolution_x * render_percentage / 100)
-                    active_scene.render.resolution_y = \
-                        round(active_scene.render.resolution_y * render_percentage / 100)
-                    active_scene.render.resolution_percentage = 100
-                else : # isinstance(render_percentage, int)
-                    active_scene.render.resolution_percentage = render_percentage
-                #end if
+            if render_height == None :
+                render_height = round(render_width * active_scene.render.resolution_y / active_scene.render.resolution_x)
             #end if
+            active_scene.render.resolution_x = render_width
+            active_scene.render.resolution_y = render_height
+        #end if
+        if render_percentage != None :
+            if isinstance(render_percentage, float) :
+                active_scene.render.resolution_x = \
+                    round(active_scene.render.resolution_x * render_percentage / 100)
+                active_scene.render.resolution_y = \
+                    round(active_scene.render.resolution_y * render_percentage / 100)
+                active_scene.render.resolution_percentage = 100
+            else : # isinstance(render_percentage, int)
+                active_scene.render.resolution_percentage = render_percentage
+            #end if
+        #end if
 
-            compose_offset = None
-            if preexec != None :
-                exec(preexec)
+        compose_offset = None
+        if preexec != None :
+            exec(preexec)
+        #end if
+        start_time = time.time()
+        frames_done = 0
+        for frame_nr in range(frame_start, frame_end + 1, frame_step) :
+            if animation :
+                out_image_name = os.path.join(use_render_out, make_frame_name(frame_nr))
+            else :
+                out_image_name = render_out
             #end if
-            start_time = time.time()
-            frames_done = 0
-            for frame_nr in range(frame_start, frame_end + 1, frame_step) :
-                if animation :
-                    out_image_name = os.path.join(use_render_out, make_frame_name(frame_nr))
-                else :
-                    out_image_name = render_out
-                #end if
-                if existing_action == "overwrite" or not os.path.exists(out_image_name) :
-                    active_scene.frame_set(frame_nr)
-                    if len(camera_names) <= 1 :
-                        if doing_stereo :
-                            for param in stereo_params :
-                                setattr(active_scene.camera.data.stereo, param, stereo_params[param])
-                            #end if
-                        #end if
-                        if use_camera_collections  :
-                            set_collections_from_object(active_scene.camera)
-                        #end if
-                    #end if
-                    if len(camera_names) > 1 :
-                        for i in range(len(camera_names)) :
-                            active_scene.camera = bpy.data.objects[camera_names[i]]
-                            if doing_stereo :
-                                for param in stereo_params :
-                                    setattr(active_scene.camera.data.stereo, param, stereo_params[param])
-                                #end if
-                            #end if
-                            if use_camera_collections :
-                                set_collections_from_object(active_scene.camera)
-                            #end if
-                            active_scene.render.filepath = temp_image_names[i]
-                            bpy.ops.render.render(write_still = True)
-                        #end for
-                        for i in range(len(temp_image_names)) :
-                            image = get_image_from_png(temp_image_names[i])
-                            if i == 0 :
-                                image_dimensions = image.dimensions
-                                compose_step = Vector \
-                                  (
-                                    (0, 1)[arrange == "across"],
-                                    (0, 1)[arrange == "down"]
-                                  )
-                                if arrange_limit != None and arrange_limit < len(temp_image_names) :
-                                    compose_step_2 = Vector(compose_step.y, compose_step.x)
-                                    composite_steps = \
-                                        (
-                                            compose_step * arrange_limit
-                                        +
-                                                compose_step_2
-                                            *
-                                                ((len(temp_image_names) + arrange_limit - 1) // arrange_limit)
-                                        )
-                                else :
-                                    compose_step_2 = None
-                                    composite_steps = Vector(1, 1) + compose_step * (len(temp_image_names) - 1)
-                                #end if
-                                concat = qah.ImageSurface.create \
-                                  (
-                                    format = CAIRO.FORMAT_RGB24,
-                                    dimensions = image_dimensions * composite_steps
-                                  )
-                                compose = \
-                                    (qah.Context.create(concat)
-                                        .set_operator(CAIRO.OPERATOR_SOURCE)
-                                        .set_source_colour(Colour.grey(0, 0))
-                                        .paint()
-                                    )
-                            #end if
-                            if compose_step_2 != None :
-                                compose_pos = \
-                                    (
-                                        image_dimensions
-                                    *
-                                        (
-                                            compose_step * (i % arrange_limit)
-                                        +
-                                            compose_step_2 * (i // arrange_limit)
-                                        )
-                                    )
-                            else :
-                                compose_pos = image_dimensions * compose_step * i
-                            #end if
-                            compose.set_source_surface(image, compose_pos)
-                            compose.rectangle(Rect.from_dimensions(image_dimensions) + compose_pos)
-                            compose.fill()
-                        #end for
-                        concat.flush()
-                        concat.write_to_png(out_image_name)
-                    elif rotate != 0 :
-                        active_scene.render.filepath = temp_image_names[0]
-                        bpy.ops.render.render(write_still = True)
-                        get_image_from_png(temp_image_names[0]).write_to_png(out_image_name)
-                    else :
-                        active_scene.render.filepath = out_image_name
-                        bpy.ops.render.render(write_still = True)
-                    #end if
-                    frames_done += 1
-                elif existing_action in ("skip", "replace-all") :
-                    sys.stdout.write("Skipped %s\n" % out_image_name)
-                else :
-                    raise RuntimeError("Output image “%s” already exists" % out_image_name)
-                #end if
-            #end for
-            if outtempdir != None :
-                if os.path.islink(render_out) :
-                    os.remove(render_out)
-                elif os.path.isdir(render_out) :
-                    shutil.rmtree(render_out)
-                #end if
-                sys.stdout.write("Rename dir %s => %s\n" % (outtempdir, render_out))
-                os.rename(outtempdir, render_out)
+            if existing_action == "overwrite" or not os.path.exists(out_image_name) :
+                active_scene.frame_set(frame_nr)
+                active_scene.render.filepath = out_image_name
+                bpy.ops.render.render(write_still = True)
+                frames_done += 1
+            elif existing_action in ("skip", "replace-all") :
+                sys.stdout.write("Skipped %s\n" % out_image_name)
+            else :
+                raise RuntimeError("Output image “%s” already exists" % out_image_name)
             #end if
-            now = time.time()
-            sys.stdout.write \
-              (
-                    "Rendered %d %s in %s\n"
-                %
-                      (
-                        frames_done,
-                        ("frame", "frames")[frames_done != 1],
-                        format_elapsed(now - start_time),
-                      )
-              )
-        #end with
+        #end for
+        if outtempdir != None :
+            if os.path.islink(render_out) :
+                os.remove(render_out)
+            elif os.path.isdir(render_out) :
+                shutil.rmtree(render_out)
+            #end if
+            sys.stdout.write("Rename dir %s => %s\n" % (outtempdir, render_out))
+            os.rename(outtempdir, render_out)
+        #end if
+        now = time.time()
+        sys.stdout.write \
+          (
+                "Rendered %d %s in %s\n"
+            %
+                  (
+                    frames_done,
+                    ("frame", "frames")[frames_done != 1],
+                    format_elapsed(now - start_time),
+                  )
+          )
         if crash_protect :
             # Blender seems to get confused over threading in the child process,
             # and hangs instead of quitting.
