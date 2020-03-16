@@ -1086,8 +1086,6 @@ while True :
                 active_scene.render.threads = nr_render_threads
             #end if
             active_camera = active_scene.camera
-            if not vse_render :
-                orig_camera_matrix = active_camera.matrix_basis.copy()
             #end if
 
             if render_width != None or render_height != None :
