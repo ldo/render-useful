@@ -1078,26 +1078,6 @@ while True :
             if len(camera_names) == 1 :
                 active_scene.camera = bpy.data.objects[camera_names[0]]
             #end if
-            if render_samples != None :
-                if (
-                        hasattr(active_scene, "cycles")
-                    and
-                        active_scene.render.engine == "CYCLES"
-                ) :
-                     active_scene.cycles.samples = render_samples
-                elif (
-                        active_scene.render.engine == "BLENDER_RENDER"
-                    and
-                        active_scene.world.light_settings.gather_method == "RAYTRACE"
-                ) :
-                    active_scene.world.light_settings.samples = render_samples
-                else :
-                    raise ValueError \
-                      (
-                        "--samples value only valid for Cycles renderer, or for"
-                        " BI renderer in Raytrace gather mode"
-                      )
-                #end if
             #end if
             if render_threads_mode != None :
                 active_scene.render.threads_mode = render_threads_mode
