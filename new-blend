@@ -13,18 +13,19 @@
 #          searching for the name “blender” in your PATH.
 #    --enable-compositor-nodes
 #          enables nodes in the Compositor.
-#    --enable-cycles
-#          switch the render engine to Cycles. Also enables nodes on all
-#          lamps and materials, and the world background.
+#    --enable-shader-nodes
+#          enables nodes on material and lamp definitions.
 #    --enable-osl
-#          turn on Open Shading Language (ignored unless specified with --enable-cycles).
+#          turn on Open Shading Language (only relevant for the Cycles renderer).
 #    --factory
 #          indicates that the file should be initialized from the factory
 #          default settings, not the user default settings.
+#    --renderer=«renderer»
+#          set the renderer to «renderer» (e.g. "CYCLES", "BLENDER_EEVEE" or "BLENDER_WORKBENCH").
 #    --template=«template-name»
 #          specifies the startup template to load.
 #
-# Copyright 2016-2017 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2016-2020 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -33,7 +34,8 @@ factory=
 template=
 load_ui=1
 enable_compositor_nodes=
-enable_cycles=
+enable_shader_nodes=
+renderer=
 enable_osl=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
@@ -51,14 +53,16 @@ for ((;;)); do
         blender="$val"
     elif [ "$opt" = "enable-compositor-nodes" ]; then
         enable_compositor_nodes=1
-    elif [ "$opt" = "enable-cycles" ]; then
-        enable_cycles=1
+    elif [ "$opt" = "enable-shader-nodes" ]; then
+        enable_shader_nodes=1
     elif [ "$opt" = "enable-osl" ]; then
         enable_osl=1
     elif [ "$opt" = "factory" ]; then
         factory=1
     elif [ "$opt" = "no-load-ui" ]; then
         load_ui=
+    elif [ "$opt" = "renderer" ]; then
+        renderer="$val"
     elif [ "$opt" = "template" ]; then
         template="$val"
     else
@@ -85,10 +89,11 @@ if [ -f "$blendfile" ]; then
 fi
 export RENDER_blendfile="$blendfile"
 export RENDER_enable_compositor_nodes="$enable_compositor_nodes"
+export RENDER_enable_shader_nodes="$enable_shader_nodes"
 export RENDER_factory="$factory"
 export RENDER_template="$template"
 export RENDER_load_ui="$load_ui"
-export RENDER_enable_cycles="$enable_cycles"
+export RENDER_renderer="$renderer"
 export RENDER_enable_osl="$enable_osl"
 
 exec "$blender" -noaudio 5>&1 1>/dev/null -b -P <(cat <<'EOD'
@@ -115,7 +120,8 @@ if template != "" :
 #end if
 load_ui = os.getenv("RENDER_load_ui", "") != ""
 enable_compositor_nodes = os.getenv("RENDER_enable_compositor_nodes", "") != ""
-enable_cycles = os.getenv("RENDER_enable_cycles", "") != ""
+enable_shader_nodes = os.getenv("RENDER_enable_shader_nodes", "") != ""
+renderer = os.getenv("RENDER_renderer", "")
 enable_osl = os.getenv("RENDER_enable_osl", "") != ""
 
 if use_factory_settings :
@@ -123,19 +129,19 @@ if use_factory_settings :
 else :
     bpy.ops.wm.read_homefile(app_template = template, load_ui = load_ui)
 #end if
-if enable_compositor_nodes :
-    for scene in bpy.data.scenes :
+for scene in bpy.data.scenes :
+    if renderer != "" :
+        scene.render.engine = renderer
+    #end if
+    if enable_osl :
+        scene.cycles.shading_system = True
+    #end if
+    if enable_compositor_nodes :
         scene.use_nodes = True
-    #end for
-#end if
-if enable_cycles :
-    for scene in bpy.data.scenes :
-        scene.render.engine = "CYCLES"
-        if enable_osl :
-            scene.cycles.shading_system = True
-        #end if
-    #end for
-    for blocktype in ("lamps", "materials", "worlds") :
+    #end if
+#end for
+if enable_shader_nodes :
+    for blocktype in ("lights", "materials", "worlds") :
         for datablock in getattr(bpy.data, blocktype) :
             datablock.use_nodes = True
         #end for
