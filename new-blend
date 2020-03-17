@@ -12,7 +12,7 @@
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
 #    --enable-compositor-nodes
-#          enables notes in the Compositor.
+#          enables nodes in the Compositor.
 #    --enable-cycles
 #          switch the render engine to Cycles. Also enables nodes on all
 #          lamps and materials, and the world background.
