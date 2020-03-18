@@ -406,7 +406,7 @@ def make_frame_name(frame_nr) :
     "computes the frame filename for the specified frame number. Assumes frame_nr_adjust" \
     " and frame_digits have been initialized."
     return \
-        "%%0.%dd%%s" % frame_digits % (frame_nr + frame_adjust, outfile_ext)
+        "%%0.%dd%%s" % frame_digits % (frame_nr + frame_nr_adjust, outfile_ext)
 #end make_frame_name
 
 def parse_frame_name_or_nr(frame) :
