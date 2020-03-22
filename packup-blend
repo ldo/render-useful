@@ -154,7 +154,7 @@ while True :
     try :
         deps = subprocess.check_output \
           (
-            args = (cmd,) + ((), ("--blender=%s" % blender,))[blender != None] + ("--full", blendfile),
+            args = (cmd,) + ((), ("--blender=%s" % blender,))[blender != None] + ("--full", "--", blendfile),
             universal_newlines = True,
           )
         break
@@ -172,7 +172,7 @@ deps = set(i["filepath"] for i in sum((v for v in deps.values()), []))
 
 blendfilepath = os.path.abspath(blendfile)
 archivefilepath = os.path.abspath(archivefile)
-parent_dir = os.path.split(blendfilepath)[0]
+parent_dir, blendfilename = os.path.split(blendfilepath)
 choose = file_exts[file_ext]
 archiver = archivers[choose["type"]]
 
@@ -192,22 +192,31 @@ if "subtype" in choose :
 if "cmd_suffix" in archiver :
     args.extend(list(archiver["cmd_suffix"]))
 #end if
-if archiver["double_dash"] == DOUBLE_DASH.BEFORE_FILES :
+dash_handling = archiver["double_dash"]
+if dash_handling == DOUBLE_DASH.BEFORE_FILES :
     args.append("--")
 #end if
-args.append(archivefilepath)
-if archiver["double_dash"] == DOUBLE_DASH.AFTER_SUFFIX_ARG :
+if dash_handling == DOUBLE_DASH.NOT_SUPPORTED and archivefilepath.startswith("-") :
+    args.append("./" + archivefilepath)
+else :
+    args.append(archivefilepath)
+#end if
+if dash_handling == DOUBLE_DASH.AFTER_SUFFIX_ARG :
     args.append("--")
 #end if
-args.append(os.path.split(blendfilepath)[1])
-  # .blend file is always at root of unpacked directory tree
+if dash_handling == DOUBLE_DASH.NOT_SUPPORTED and blendfilename.startswith("-") :
+    args.append("./" + blendfilename)
+else :
+    args.append(blendfilename)
+#end if
+   # .blend file is always at root of unpacked directory tree
 for item in sorted(deps) : # might as well include dependencies in consistent order
     if item.startswith("//") and not item.startswith("//../") :
         item = item[2:]
         args.append \
           (
                 ("", "./")
-                    [archiver["double_dash"] == DOUBLE_DASH.NOT_SUPPORTED and item.startswith("-")]
+                    [dash_handling == DOUBLE_DASH.NOT_SUPPORTED and item.startswith("-")]
             +
                 item
           )
