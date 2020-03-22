@@ -807,11 +807,13 @@ if render_out == "" :
     render_out = os.path.splitext(os.path.basename(blendfile))[0] + outfile_ext
 #end if
 doing_stereo = False # to begin with
+stereo_side = None # to begin with
 if stereo_settings != None :
     doing_stereo = True
     if stereo_settings != "" :
         valid_parms = \
             {
+                "side" : validate_enum({"LEFT", "RIGHT"}),
                 "convergence_distance" : validate_float_at_least(1e-5),
                 "convergence_mode" : validate_enum({"OFFAXIS", "PARALLEL", "TOE"}),
                 "interocular_distance" : validate_float_at_least(0),
@@ -823,6 +825,7 @@ if stereo_settings != None :
             raise ValueError("invalid stereo params: %s" % ",".join(sorted(invalid_parms)))
         #end if
         stereo_params = dict((k, valid_parms[k](stereo_params[k])) for k in stereo_params)
+        stereo_side = stereo_params.pop("side", None)
     else :
         stereo_params = {}
     #end if
@@ -840,6 +843,8 @@ else :
 assert not vse_render or not doing_stereo and camera_name == None
 if doing_stereo :
     active_scene.render.image_settings.views_format = "STEREO_3D"
+    active_scene.render.views["left"].use = stereo_side != "RIGHT"
+    active_scene.render.views["right"].use = stereo_side != "LEFT"
     active_scene.render.image_settings.stereo_3d_format.display_mode = "SIDEBYSIDE"
     active_scene.render.image_settings.stereo_3d_format.use_sidebyside_crosseyed = True
     active_scene.render.image_settings.stereo_3d_format.use_squeezed_frame = False
