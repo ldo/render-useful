@@ -97,15 +97,18 @@ file_exts = \
 
 blender = None
 verbose = False
+debug = False
 opts, args = getopt.getopt \
   (
     sys.argv[1:],
     "v",
-    ["blender=", "verbose"]
+    ["blender=", "debug", "verbose"]
   )
 for keyword, value in opts :
     if keyword == "--blender" :
         blender = value
+    elif keyword == "--debug" :
+        debug = True
     elif keyword == "-v" or keyword == "--verbose" :
         verbose = True
     #end if
@@ -215,6 +218,9 @@ for item in sorted(deps) : # might as well include dependencies in consistent or
     #end if
 #end for
 
+if debug :
+    sys.stderr.write("cmd: %s\n" % repr(args))
+#end if
 subprocess.check_call \
   (
     args = args,
