@@ -23,7 +23,7 @@
 #     ext-files (part of the same render-useful package that includes packup-blend);
 #     tar, 7z and/or zip.
 #
-# Copyright 2017-2018 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2017-2020 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
