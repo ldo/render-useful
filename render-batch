@@ -807,40 +807,34 @@ if render_out == "" :
     render_out = os.path.splitext(os.path.basename(blendfile))[0] + outfile_ext
 #end if
 doing_stereo = False # to begin with
-if hasattr(active_scene.render, "use_multiview") :
-    if stereo_settings != None :
-        doing_stereo = True
-        if stereo_settings != "" :
-            valid_parms = \
-                {
-                    "convergence_distance" : validate_float_at_least(1e-5),
-                    "convergence_mode" : validate_enum({"OFFAXIS", "PARALLEL", "TOE"}),
-                    "interocular_distance" : validate_float_at_least(0),
-                    "pivot" : validate_enum({"CENTER", "LEFT", "RIGHT"}),
-                }
-            stereo_params = dict(item.split("=", 1) for item in stereo_settings.split(":"))
-            invalid_parms = set(k for k in stereo_params.keys() if k not in valid_parms)
-            if len(invalid_parms) != 0 :
-                raise ValueError("invalid stereo params: %s" % ",".join(sorted(invalid_parms)))
-            #end if
-            stereo_params = dict((k, valid_parms[k](stereo_params[k])) for k in stereo_params)
-        else :
-            stereo_params = {}
+if stereo_settings != None :
+    doing_stereo = True
+    if stereo_settings != "" :
+        valid_parms = \
+            {
+                "convergence_distance" : validate_float_at_least(1e-5),
+                "convergence_mode" : validate_enum({"OFFAXIS", "PARALLEL", "TOE"}),
+                "interocular_distance" : validate_float_at_least(0),
+                "pivot" : validate_enum({"CENTER", "LEFT", "RIGHT"}),
+            }
+        stereo_params = dict(item.split("=", 1) for item in stereo_settings.split(":"))
+        invalid_parms = set(k for k in stereo_params.keys() if k not in valid_parms)
+        if len(invalid_parms) != 0 :
+            raise ValueError("invalid stereo params: %s" % ",".join(sorted(invalid_parms)))
         #end if
-        active_scene.render.use_multiview = True
-        active_scene.render.views_format = "STEREO_3D"
+        stereo_params = dict((k, valid_parms[k](stereo_params[k])) for k in stereo_params)
     else :
-        if active_scene.render.use_multiview :
-            if active_scene.render.views_format != "STEREO_3D" :
-                raise RuntimeError("Only multiview mode supported is STEREO_3D")
-            #end if
-            stereo_params = {}
-            doing_stereo = True
-        #end if
+        stereo_params = {}
     #end if
+    active_scene.render.use_multiview = True
+    active_scene.render.views_format = "STEREO_3D"
 else :
-    if stereo_settings != None :
-        raise RuntimeError("Blender version does not support multiview")
+    if active_scene.render.use_multiview :
+        if active_scene.render.views_format != "STEREO_3D" :
+            raise RuntimeError("Only multiview mode supported is STEREO_3D")
+        #end if
+        stereo_params = {}
+        doing_stereo = True
     #end if
 #end if
 assert not vse_render or not doing_stereo and camera_name == None
