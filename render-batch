@@ -818,12 +818,25 @@ if stereo_settings != None :
                 "convergence_mode" : validate_enum({"OFFAXIS", "PARALLEL", "TOE"}),
                 "interocular_distance" : validate_float_at_least(0),
                 "pivot" : validate_enum({"CENTER", "LEFT", "RIGHT"}),
+              # synonyms which are less of a mouthful:
+                "cdist" : "convergence_distance",
+                "cmode" : "convergence_mode",
+                "idist" : "interocular_distance",
+                "iod" : "interocular_distance",
+              # synonyms allowing hyphens in place of underscores:
+                "convergence-distance" : "convergence_distance",
+                "convergence-mode" : "convergence_mode",
+                "interocular-distance" : "interocular_distance",
             }
         stereo_params = dict(item.split("=", 1) for item in stereo_settings.split(":"))
         invalid_parms = set(k for k in stereo_params.keys() if k not in valid_parms)
         if len(invalid_parms) != 0 :
             raise ValueError("invalid stereo params: %s" % ",".join(sorted(invalid_parms)))
         #end if
+        for key in list(k for k in stereo_params.keys() if isinstance(valid_parms[k], str)) :
+            # remap synonyms to standard names
+            stereo_params[valid_parms[key]] = stereo_params.pop(key)
+        #end for
         stereo_params = dict((k, valid_parms[k](stereo_params[k])) for k in stereo_params)
         stereo_side = stereo_params.pop("side", None)
     else :
