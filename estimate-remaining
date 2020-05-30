@@ -242,6 +242,6 @@ sys.stdout.write \
                                         [error_estimate != None](),
                                 "finish_time" : format_endtime(time_remaining),
                             },
-                )[frames_delta != 0](),
+                )[frames_delta > 0](),
         }
   )
