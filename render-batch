@@ -946,6 +946,26 @@ while True :
         if camera_name != None :
             active_scene.camera = bpy.data.objects[camera_name]
         #end if
+        if render_samples != None :
+            if (
+                    hasattr(active_scene, "cycles")
+                and
+                    active_scene.render.engine == "CYCLES"
+            ) :
+                 active_scene.cycles.samples = render_samples
+            elif (
+                    hasattr(active_scene, "eevee")
+                and
+                    active_scene.render.engine == "EEVEE"
+            ) :
+                active_scene.eevee.taa_render_samples = render_samples
+            else :
+               raise ValueError \
+                  (
+                    "--samples value only valid for Cycles or Eevee renderers"
+                  )
+            #end if
+        #end if
         if render_threads_mode != None :
             active_scene.render.threads_mode = render_threads_mode
         #end if
