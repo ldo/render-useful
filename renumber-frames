@@ -21,11 +21,12 @@
 #
 # A range spec takes one of the forms («lo» and «hi» are positive
 # decimal integers):
-#     «lo»-«hi» -- frame numbers «lo» to «hi» inclusive
-#     «lo»:«hi» -- frame numbers «lo» to («hi» + 1) inclusive
-#     «lo»      -- start at frame number «lo». Only permitted for
-#                  the «torange»; frame numbers will be assigned
-#                  incrementally for corresponding frames in «fromrange».
+#     «lo»-«hi»    -- frame numbers «lo» to «hi» inclusive
+#     «lo»:«hi»    -- frame numbers «lo» to («hi» - 1) inclusive
+#     «lo»+«count» -- frame numbers «lo» to («lo» + «count» - 1) inclusive
+#     «lo»         -- start at frame number «lo». Only permitted for
+#                     the «torange»; frame numbers will be assigned
+#                     incrementally for corresponding frames in «fromrange».
 #
 # For rename operations, «fromrange» and «torange» may overlap, even
 # if «fromdir» and «todir» are the same, provided that frames will
@@ -43,7 +44,7 @@
 #         confirming that the operation will produce the correct results
 #         before turning it loose on the filesystem.
 #
-# Copyright 2019 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2019-2020 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
