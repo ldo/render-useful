@@ -123,6 +123,10 @@ def format_approx(interval) :
     if i > 0 :
         factor2 = factor // units[i][0]
         val2 = val % factor // factor2
+    else :
+        val2 = 0
+    #end if
+    if val2 != 0 :
         formatted = "%d%s %d%s" % (val1, units[i][1], val2, units[i - 1][1])
     else :
         formatted = "%d%s" % (val1, units[i][1])
