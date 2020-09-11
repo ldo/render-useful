@@ -257,14 +257,21 @@ sys.stdout.write \
                 (
                     lambda : "all done",
                     lambda :
-                            "estimated time remaining = %(time_remaining)s%(time_remaining_error)s"
-                            " (finish at %(finish_time)s)"
+                            "estimated time remaining = %(time_remaining)s%(time_remaining_error_seconds)s"
+                            " (finish at %(finish_time)s%(time_remaining_error_approx)s)"
                         %
                             {
                                 "time_remaining" : format_elapsed(time_remaining),
-                                "time_remaining_error" :
-                                    (lambda : "", lambda : " ±%s" % format_approx(error_estimate * frames_delta))
-                                        [error_estimate != None](),
+                                "time_remaining_error_seconds" :
+                                    (
+                                        lambda : "",
+                                        lambda : " ±%ds" % round(error_estimate * frames_delta)
+                                    )[error_estimate != None](),
+                                "time_remaining_error_approx" :
+                                    (
+                                        lambda : "",
+                                        lambda : " ±%s" % format_approx(error_estimate * frames_delta)
+                                    )[error_estimate != None](),
                                 "finish_time" : format_endtime(time_remaining),
                             },
                 )[frames_delta > 0](),
