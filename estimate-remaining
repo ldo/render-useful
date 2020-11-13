@@ -61,12 +61,14 @@ def format_elapsed(interval, long_form = False, seconds_places = 0) :
             factor = None
             place = interval
         #end if
-        place = "{:.{places}f}{}".format \
-          (
-            place,
-            (unit[1], " " + unit[2:4][place != 1])[long_form],
-            places = (0, seconds_places)[unitindex == 0]
-          )
+        place = \
+            (
+                "%%.%df%%s"
+            %
+                (0, seconds_places)[unitindex == 0]
+            %
+                (place, (unit[1], " " + unit[2:4][place != 1])[long_form])
+            )
         result = \
             (
                 place
