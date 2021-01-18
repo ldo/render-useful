@@ -100,8 +100,7 @@
 #          calculated from the other so as to maintain the existing aspect
 #          ratio.
 #    --samples=«samples»
-#          the number of samples per pixel (Cycles renderer, or BI renderer in
-#          Raytrace gather mode, only).
+#          the number of samples per pixel (Cycles or Eevee renderers).
 #    --scene=«scene»
 #          specifies the scene to render.
 #    --threads=«n»
