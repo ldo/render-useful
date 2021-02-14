@@ -70,7 +70,7 @@ for v in full_json presence test_missing test_requires; do
     incompat=$(($incompat + $(if [ -n "${!v}" ]; then echo -n 1; else echo -n 0; fi)))
 done
 if [ $incompat -gt 1 ]; then
-    echo "$0: only one of --full, --presence, --test-missing or --test_requires can be specified" 1>&2
+    echo "$0: only one of --full, --presence, --test-missing or --test-requires can be specified" 1>&2
     exit 3
 fi
 if [ -z "$(type -p "$blender")" ]; then
