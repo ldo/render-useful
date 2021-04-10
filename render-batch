@@ -955,7 +955,7 @@ while True :
             elif (
                     hasattr(active_scene, "eevee")
                 and
-                    active_scene.render.engine == "EEVEE"
+                    active_scene.render.engine == "BLENDER_EEVEE"
             ) :
                 active_scene.eevee.taa_render_samples = render_samples
             else :
