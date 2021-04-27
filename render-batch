@@ -30,8 +30,8 @@
 #          specifies the name of the camera to use.
 #    --crash-protect
 #          spawns a separate child process to do the rendering, with automatic
-#          resume after a crash. Currently only supported together with
-#          --animation and --existing=(replace-all|skip).
+#          resume after a crash or certain rendering misbehaviour. Currently only
+#          supported together with --animation and --existing=(replace-all|skip).
 #          (Best considered experimental for now.)
 #    --digits=«digits»
 #          for an animation, the number of digits for for formatting frame
@@ -326,6 +326,7 @@ import os
 import io
 import time
 import signal
+import subprocess
 import re
 import shutil
 import bpy
@@ -1020,6 +1021,19 @@ while True :
                 active_scene.frame_set(frame_nr)
                 active_scene.render.filepath = out_image_name
                 bpy.ops.render.render(write_still = True)
+                if crash_protect and active_scene.render.engine == "BLENDER_EEVEE" :
+                    # I hit this problem sometimes that Eevee starts producing all-black frames.
+                    analysis = subprocess.check_output \
+                      (
+                        args = ("identify", "-verbose", out_image_name),
+                        universal_newlines = True
+                      )
+                    if "\n  Colors: 1\n" in analysis :
+                        sys.stdout.write("Bad render %s\n" % out_image_name)
+                        os.unlink(out_image_name)
+                        os.abort()
+                    #end if
+                #end if
                 frames_done += 1
             elif existing_action in ("skip", "replace-all") :
                 sys.stdout.write("Skipped %s\n" % out_image_name)
