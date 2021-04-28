@@ -409,7 +409,7 @@ recognized_commands = \
             "args" : 1,
             "opts" : ("format=", "raw"),
             "action" : cmd_log,
-            "help_usage" : "«blendfile»",
+            "help_usage" : "[--format=«format»|--raw] «blendfile»",
             "help_descr" : "lists the commit history for the specified .blend file",
         },
 
