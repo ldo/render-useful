@@ -29,7 +29,7 @@
 #          respectively. Incompatible with the --full, --presence or test-missing
 #          options.
 #
-# Copyright 2015-2018 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2015-2021 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -90,6 +90,7 @@ export RENDER_test_requires="$test_requires"
 "$blender" -noaudio 5>&1 1>/dev/null -b -P <(cat <<'EOD'
 import sys
 import os
+import itertools
 import json
 import bpy
 
@@ -233,7 +234,11 @@ def process_node(category, node, name_extra) :
                 process_node(category, subnode, name_extra + "/" + subnode.name)
                 if found :
                     break
-            elif isinstance(subnode, bpy.types.ShaderNodeScript) and subnode.mode == "EXTERNAL" :
+            elif (
+                    isinstance(subnode, (bpy.types.ShaderNodeScript, bpy.types.ShaderNodeTexIES))
+                and
+                    subnode.mode == "EXTERNAL"
+            ) :
                 process_item(category, subnode, (), name_extra)
                 if found :
                     break
@@ -278,8 +283,14 @@ if not found :
     if full_json :
         cat_started = False
     #end if
-    for material in bpy.data.materials :
-        process_node("shader-node scripts", material, material.name)
+    for category, item in \
+        itertools.chain \
+          (
+            zip(("shader-node scripts",) * len(bpy.data.materials), bpy.data.materials),
+            zip(("shader-node IES lights",) * len(bpy.data.lights), bpy.data.lights)
+          ) \
+    :
+        process_node(category, item, item.name)
         if found :
             break
     #end for
