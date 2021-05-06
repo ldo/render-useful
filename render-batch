@@ -925,7 +925,6 @@ if crash_protect :
         -
             set(os.listdir(use_render_out))
         )
-    sys.stdout.write("initial frames_undone = %s\n" % repr(frames_undone)) # debug
     crash_count = 0
 #end if
 while True :
