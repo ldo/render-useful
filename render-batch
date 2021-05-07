@@ -132,6 +132,9 @@
 # two eye images side-by-side, the image for the right eye on
 # the left and vice versa, for viewing as “cross-eyed” stereo.
 #
+# External command needed: identify (part of ImageMagick/GraphicsMagick)
+# used as part of --crash-protect option with Eevee.
+#
 # Copyright 2013-2020 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
