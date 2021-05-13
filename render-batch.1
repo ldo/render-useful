@@ -1,0 +1,302 @@
+.TH "RENDER-BATCH" "1" "2021-05-13" "Geek Central" "Render-Useful Collection"
+
+.SH NAME
+render\-batch \- batch-mode rendering of
+.UR https://blender.org/
+Blender
+.UE
+scenes.
+.SH SYNOPSIS
+.B render\-batch [«options»...] «blend-file» «output-file/dir»
+.SH DESCRIPTION
+.PP
+.B render\-batch
+is a command-line tool that invokes
+.UR https://blender.org/
+Blender
+.UE
+in batch mode to render out
+a given
+.B .blend
+file. It can render out a single still frame, or an entire animation.
+It can use default settings from the Blender document, or you can override
+settings such as resolution, render quality and output format for a particular
+invocation. You can also execute arbitrary Python code to change document settings
+beyond those that
+.B render\-batch
+itself knows about.
+
+.SH OPTIONS
+
+.TP
+.B \-\-animation
+specifies that an animation sequence is to be rendered. If omitted, a
+single frame is rendered.
+
+For an animation sequence, the
+.B «output-file/dir»
+is interpreted as a directory into which to save the rendered frames.
+Otherwise, this is the file name to give the single rendered output frame.
+
+.TP
+.B \-\-blender=«blender»
+specifies the path to the Blender executable. Defaults to searching for
+the name “blender” in your
+.BR PATH .
+
+.TP
+.B \-\-camera=«camera»
+specifies the name of the camera to use.
+
+.TP
+.B \-\-crash\-protect
+spawns a separate child process to do the rendering, with automatic
+resume after a crash or certain rendering misbehaviour. Currently only
+supported together with
+.B \-\-animation
+and
+.BR \-\-existing= ( replace\-all | skip ).
+(Best considered experimental for now.)
+
+.TP
+.B \-\-digits=«digits»
+for an animation, the number of digits for formatting frame
+numbers to use in names of output frame files. If omitted, defaults
+to 4. The generated names will include leading zeroes as necessary to
+make up this number of digits, eg
+.RB “ 0001.png "”, “" 0002.png "” etc."
+
+.TP
+.B \-\-preexec=«script»
+executes the specified Python code prior to the rendering. May be
+specified multiple times; the values are concatenated in sequence,
+separated by newlines.
+
+.TP
+.BR \-\-existing=error | overwrite | replace\-all | skip
+specifies what to do if an output image file already exists:
+.RS
+.TP
+.B error
+\-\- signal an error and abort the render
+.TP
+.B overwrite
+\-\- overwrite the output file
+.TP
+.B replace\-all
+\-\- only for animations: replaces any existing output directory (and its contents)
+with the new frames, but only on successful completion of the entire render. Frames
+are initially rendered to a temporary directory named
+.BR «output-file/dir» \-new,
+and when all frames are done, the existing
+.B «output-file/dir»
+is deleted and
+.BR «output-file/dir» \-new,
+renamed to
+.BR «output-file/dir» .
+If
+.B «output-file/dir»\-new
+already exists (perhaps as a result of a previous crash), then any existing
+frames in it are skipped and rendering continues with frames not yet done.
+.TP
+.B skip
+\-\- skip rendering this frame. If rendering an animation, the rendering continues
+with any remaining frames.
+.PP
+If omitted, the default is
+.BR \-\-existing=error .
+.RE
+
+.TP
+.BR \-\-format=«format» [ :«mode» ][ :«depth» ]
+specifies the format for rendered image files.
+.B «format»
+can be PNG, OPENEXR or OPENEXR_MULTILAYER;
+.B «mode»
+can be BW, RGB or RGBA, and
+.B «depth»
+can be 8 or 16 for PNG or 16 or 32 for the OpenEXR formats.
+.B «mode»
+and
+.B «depth»
+may be specified in either order.
+
+.TP
+.B \-\-frame=«framenr»
+.TP
+.BR \-\-frames= [[ «start» ],[ «end» ][, «step» ]]
+specifies the frame number (if a single frame) or frame range (if an
+animation) to be rendered. The start and end frame numbers can also
+be specified as the names of timeline markers.
+
+.B \-\-frame
+and
+.B \-\-frames
+are synonymous; either one may be used to specify a single frame
+or a range.
+
+.TP
+.B \-\-collections=«collections»
+specifies the enabling/disabling of specified scene collections.
+.B «collections»
+consists of a comma-separated list of one or more
+collection names, optionally preceded by “+” or “\-”. “+” indicates to
+enable the specified collections (in addition to those already
+enabled); “\-” indicates to disable the specified collections, and the
+absence of either means the specified collections should be enabled
+and all others disabled.
+
+.TP
+.B \-\-renumber=«renumber»
+for an animation, the starting number to use to generate names for
+the output frame files. If omitted, defaults to the frame start
+number.
+
+.TP
+.B \-\-stereo[=«stereo-parms»]
+.RS
+specifies that a stereoscopic image is to be rendered, using
+Blender’s Views feature. If specified,
+.B «stereo-parms»
+takes the form
+
+.RS
+.BR «keyword»=«value» [ :«keyword»=«value» ...]
+.RE
+
+where the valid
+.BR «keyword» s
+are “convergence_distance”, “convergence_mode”, “interocular_distance” and
+“pivot”, being the corresponding fields of a CameraStereoData object. If omitted, the
+default settings for the document are used.
+.RE
+
+.TP
+.B \-\-only\-view\-layer=«view-layer-name»
+only renders the specified view layer. Also turns off compositing.
+
+.TP
+.B \-\-out=«output-file/dir»
+alternative way to specify the render destination.
+
+.TP
+.B \-\-percent=«percent»
+specifies the percentage of the render size at which to generate the
+images. If omitted, the default is 100 if
+.B \-\-resolution
+is specified,
+otherwise the default is the setting in the
+.B .blend
+file.
+
+.TP
+.BR \-\-resolution= [ «width» ] : [ «height» ]
+specifies the dimensions in pixels of each rendered image. At least
+one of
+.B width
+and
+.B height
+must be specified; if one is omitted, it is
+calculated from the other so as to maintain the existing aspect
+ratio.
+
+.TP
+.B \-\-samples=«samples»
+the number of samples per pixel (Cycles or Eevee renderers).
+
+.TP
+.B \-\-scene=«scene»
+specifies the scene to render.
+
+.TP
+.B \-\-threads=«n»
+how many concurrent threads to use for rendering (defaults to
+.RB “ auto ”).
+
+.TP
+.B \-\-time-remap=«old»:«new»
+alters the rendered frame rate to be
+.RB ( «new»
+÷
+.BR «old» )
+× the existing frame rate. If you don’t specify explicit start and end frame
+numbers, then the corresponding values set in the
+.B .blend
+file are
+automatically remapped to get as close as possible to the same start
+and end times, rounded to the nearest whole frame numbers. But note
+that the frame step remains unchanged.
+
+.TP
+.B \-\-trusted
+treat the
+.B .blend
+file as being loaded from a trusted source. This
+will enable autoexecution of scripts (e.g. drivers) which might have
+been disabled otherwise.
+
+.TP
+.B \-\-use\-camera\-collections
+sets the visible collections to exactly those on which the active
+camera is visible.
+
+.TP
+.B \-\-vse
+indicates that the render is the output of the Video Sequence Editor.
+That means the presence of a camera in the scene is ignored.
+Incompatible with the
+.B \-\-camera
+and
+.B \-\-stereo
+options.
+
+.SH NOTES
+
+The range of output formats is deliberately kept limited. In particular,
+no video output formats are supported. Video encoding is best done as a
+separate pass, using a separate purpose-built tool such as
+.UR https://ffmpeg.org/
+FFmpeg
+.UE .
+This is because Blender’s rendering is typically time-consuming, and
+having to do it over just to change video encoding parameters just
+seems like a waste of time.
+
+Thus, the supported output formats are
+limited to ones that provide
+.I lossless
+encoding of still frames. It is easy enough to run these through FFmpeg
+to encode them to whatever video format you choose, with whatever parameters
+you choose. And it is easy enough to experiment with different parameter
+settings with different quality/size tradeoffs, all without having to
+go through the rendering process again.
+
+.SH EXAMPLES
+
+.PP
+.B render-batch test.blend test.png
+
+Renders the default scene from
+.B test.blend
+using its default camera and other saved render settings as
+a still image, saving the rendered frame into
+.BR test.png.
+
+.PP
+.nf
+.B render-batch \-\-animation \-\-existing=replace-all \e
+.RS 4
+.B \-\-preexec=\(dqbpy.context.scene.view_layers[0].cycles.use_denoising = True\(dq \e
+.B test.blend test\-anim
+.fi
+.RE
+
+Renders an animation from
+.BR test.blend ,
+initially saving the frames in
+.BR test\-anim\-tmp ,
+and then moving that directory to
+.B test\-anim
+(deleting the latter and its contents if it already exists) when complete. The
+Cycles denoiser is enabled for the render (assuming the default renderer is Cycles
+and there is only a single view layer to render).
