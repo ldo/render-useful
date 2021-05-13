@@ -1,0 +1,52 @@
+.TH "ESTIMATE-REMAINING" "1" "2021-05-13" "Geek Central" "Render-Useful Collection"
+
+.SH NAME
+estimate\-remaining \- estimate time remaining for rendering an animation in
+.UR https://blender.org/
+Blender
+.UE .
+
+.SH SYNOPSIS
+.B estimate\-remaining [«options»...] «frames\-output\-dir» «final\-frame\-nr»
+
+.SH DESCRIPTION
+.PP
+.B estimate\-remaining
+is a command-line tool which, given a directory into which rendered frames
+are being saved as individual image files and the expected number of the final
+frame, will examine the timestamps on the most recent saved frames to estimate
+when the render will finish.
+
+.SH OPTIONS
+
+.TP
+.B \-\-nr\-frames=«sample-size»
+the number of most recent frames to examine the timestamps on. If omitted,
+the default is 6.
+
+.TP
+.B \-\-estimate\-error|\-e
+indcates that the output should include an estimate of the uncertainty
+in the completion time.
+
+.SH BUGS
+
+Currently can only cope with frames saved as
+.B .png
+files. Needs to handle
+at least
+.B .exr
+as well.
+
+.SH EXAMPLES
+.B estimate\-remaining frames/ 1600
+
+Shows an estimate of how long it will take for frame number 1600 to appear
+in directory
+.B frames/
+for a render currently in progress.
+
+.B estimate\-remaining \-\-nr-frames=12 \-e frames/ 1600
+
+Same as above, except base the estimate on the last 12 frames rendered, and
+also include an estimate of the uncertainty in the completion time.
