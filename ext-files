@@ -12,7 +12,7 @@
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
 #    --full
-#          spacies that details about the dependencies are to be
+#          specifies that details about the dependencies are to be
 #          printed in JSON format. Otherwise only the file paths are
 #          printed, one to a line.
 #    --presence
@@ -21,12 +21,12 @@
 #    --test-missing
 #          don’t produce any output, but return a success/failure exit
 #          status if blendfile does/does not have any missing dependencies
-#          respectively. Incompatible with the --full, --presence or test-requires
+#          respectively. Incompatible with the --full, --presence or --test-requires
 #          options.
 #    --test-requires=depfile
 #          don’t produce any output, but return a success/failure exit
 #          status if blendfile does/does not have depfile as a dependency
-#          respectively. Incompatible with the --full, --presence or test-missing
+#          respectively. Incompatible with the --full, --presence or --test-missing
 #          options.
 #
 # Copyright 2015-2021 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.

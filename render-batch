@@ -34,7 +34,7 @@
 #          supported together with --animation and --existing=(replace-all|skip).
 #          (Best considered experimental for now.)
 #    --digits=«digits»
-#          for an animation, the number of digits for for formatting frame
+#          for an animation, the number of digits for formatting frame
 #          numbers to use in names of output frame files. If omitted, defaults
 #          to 4. The generated names will include leading zeroes as necessary to
 #          make up this number of digits, eg “0001.png”, “0002.png” etc.
