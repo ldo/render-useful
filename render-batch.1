@@ -28,6 +28,11 @@ itself knows about.
 
 .SH OPTIONS
 
+Unless otherwise specified, omitted options default to the values
+saved in the
+.B .blend
+file.
+
 .TP
 .B \-\-animation
 specifies that an animation sequence is to be rendered. If omitted, a
@@ -167,8 +172,10 @@ takes the form
 where the valid
 .BR «keyword» s
 are “convergence_distance”, “convergence_mode”, “interocular_distance” and
-“pivot”, being the corresponding fields of a CameraStereoData object. If omitted, the
-default settings for the document are used.
+“pivot”, being the corresponding fields of a CameraStereoData object.
+
+The output file will contain the two eye images side-by-side, the image
+for the right eye on the left and vice versa, for viewing as “cross-eyed” stereo.
 .RE
 
 .TP
@@ -249,6 +256,15 @@ Incompatible with the
 and
 .B \-\-stereo
 options.
+
+.SH EXTERNAL PROGRAMS NEEDED
+
+The
+.B \-\-crash\-protect
+option, when used with the Eevee renderer, invokes the
+.BR identify (1)
+command (part of ImageMagick/GraphicsMagick) to analyze the rendered
+image file.
 
 .SH NOTES
 
