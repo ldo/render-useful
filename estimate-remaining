@@ -7,7 +7,7 @@
 # Invocation details are documented in the estimate-remaining(1)
 # man page, included with this script.
 #
-# Copyright 2018-2020 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2018-2021 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -18,6 +18,7 @@ import functools
 import operator
 import time
 import re
+import warnings
 import getopt
 
 #+
@@ -132,6 +133,14 @@ def format_approx(interval) :
     return formatted
 #end format_approx
 
+class IgnoredItemWarning(UserWarning) :
+
+    def __init__(self, item, why) :
+        self.args = ["ignoring item %s - %s" % (repr(item), why)]
+    #end __init__
+
+#end IgnoredItemWarning
+
 #+
 # Mainline
 #-
@@ -171,8 +180,9 @@ if not os.path.isdir(out_dir) :
 
 frames_so_far = []
 nr_frame_digits = None
+pattern = re.compile(r"^(\d+)\.(.+)$")
 for item in os.listdir(out_dir) :
-    match = re.search("^(\d+)\.png$", item)
+    match = pattern.search(item)
     if match != None :
         this_nr_digits = len(match.group(1))
         this_frame_nr = int(match.group(1))
@@ -188,7 +198,7 @@ for item in os.listdir(out_dir) :
         #end if
         frames_so_far.append((this_frame_nr, item))
     else :
-        sys.stderr.write("ignoring item %s in output directory" % repr(item))
+        warnings.warn(IgnoredItemWarning(item, "non-numeric name or no extension"))
     #end if
 #end for
 frames_so_far = sorted(frames_so_far, key = lambda x : x[0], reverse = True)[:nr_frames]

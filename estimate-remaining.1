@@ -17,6 +17,14 @@ are being saved as individual image files and the expected number of the final
 frame, will examine the timestamps on the most recent saved frames to estimate
 when the render will finish.
 
+The script automatically recognizes a common file extension and the number of digits
+in the file names: the name part before the extension should consist entirely of decimal
+digits, and it should always be the same number of digits.
+.I E.g.
+names could be something like
+.BR 0001.png ", " 0002.png
+etc.
+
 .SH OPTIONS
 
 .TP
@@ -28,15 +36,6 @@ the default is 6.
 .B \-\-estimate\-error|\-e
 indcates that the output should include an estimate of the uncertainty
 in the completion time.
-
-.SH BUGS
-
-Currently can only cope with frames saved as
-.B .png
-files. Needs to handle
-at least
-.B .exr
-as well.
 
 .SH EXAMPLES
 .B estimate\-remaining frames/ 1600
