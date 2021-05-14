@@ -2,14 +2,10 @@
 #+
 # This script estimates the time remaining to finish rendering an
 # animation, based on the time intervals between the last few
-# PNG frames in an output directory. Invoke it as follows:
+# PNG frames in an output directory.
 #
-#     estimate-remaining «out-dir» «final-frame-nr»
-#
-# where «out-dir» is the directory containing the rendered frames, and
-# «final-frame-nr» is the number of the final frame in the animation.
-# The output will show the calculated time per frame, and the
-# estimated time until the render of the final frame is complete.
+# Invocation details are documented in the estimate-remaining(1)
+# man page, included with this script.
 #
 # Copyright 2018-2020 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
