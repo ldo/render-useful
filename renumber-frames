@@ -1,48 +1,9 @@
 #!/usr/bin/python3
 #+
 # This script does bulk changes to the names of files of the form «d».«ext».
-# Invoke it as follows:
 #
-#     renumber-frames [«options»] «op» «fromdir» «fromrange» «todir» «torange»
-#
-# where «op» indicates the operation to perform (copy, move, symlink
-# or hardlink), «fromdir» is where to take the files from, «fromrange»
-# is a rangespec indicating the set of filenames to operate on in
-# «fromdir», «todir» is where to put the files, and «torange» is a
-# rangespec giving the new names for the files.
-#
-# The names of frame files take the form «n».«ext», where «n» is
-# a positive decimal integer with some fixed number of digits (it
-# must be the same number of digits for all the files), and
-# «ext» is the same extension for all of them.
-#
-# If «todir» is empty (e.g. ""), then it is taken to be the same
-# as «fromdir».
-#
-# A range spec takes one of the forms («lo» and «hi» are positive
-# decimal integers):
-#     «lo»-«hi»    -- frame numbers «lo» to «hi» inclusive
-#     «lo»:«hi»    -- frame numbers «lo» to («hi» - 1) inclusive
-#     «lo»+«count» -- frame numbers «lo» to («lo» + «count» - 1) inclusive
-#     «lo»         -- start at frame number «lo». Only permitted for
-#                     the «torange»; frame numbers will be assigned
-#                     incrementally for corresponding frames in «fromrange».
-#
-# For rename operations, «fromrange» and «torange» may overlap, even
-# if «fromdir» and «todir» are the same, provided that frames will
-# not be given the same names as existing frames that are not being
-# renamed.
-#
-# Valid «options» are:
-#     --digits=«to_digits»
-#         If specified, then the new file names will have this number
-#         of digits in their names, instead of the same number as the
-#         original files.
-#     --dry-run
-#         If specified, then no actual copy/move/link operations will
-#         be performed, only the messages will be output. Useful for
-#         confirming that the operation will produce the correct results
-#         before turning it loose on the filesystem.
+# Invocation details are documented in the renumber-frames(1) man page,
+# included with this script.
 #
 # Copyright 2019-2020 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
