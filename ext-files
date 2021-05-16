@@ -49,11 +49,18 @@ for ((;;)); do
     fi
 done
 incompat=0
-for v in full_json presence test_missing test_requires; do
+for v in full_json test_missing test_requires; do
     incompat=$(($incompat + $(if [ -n "${!v}" ]; then echo -n 1; else echo -n 0; fi)))
 done
 if [ $incompat -gt 1 ]; then
-    opterror "only one of --full, --presence,, --test-missing or --test-requires can be specified"
+    opterror "only one of --full, --test-missing or --test-requires can be specified"
+fi
+incompat=0
+for v in presence test_missing test_requires; do
+    incompat=$(($incompat + $(if [ -n "${!v}" ]; then echo -n 1; else echo -n 0; fi)))
+done
+if [ $incompat -gt 1 ]; then
+    opterror "only one of --presence, --test-missing or --test-requires can be specified"
 fi
 if [ -z "$(type -p "$blender")" ]; then
     opterror "no such executable “$blender”"
