@@ -16,6 +16,12 @@
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
+opterror()
+  {
+    echo "$0: $1" 1>&2
+    exit 3
+  } # opterror
+
 blender=blender
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
@@ -32,17 +38,14 @@ for ((;;)); do
     if [ "$opt" = "blender" ]; then
         blender="$val"
     else
-        echo "$0: bad option $opt" 1>&2
-        exit 3
+        opterror "bad option $opt"
     fi
 done
 if [ -z "$(type -p "$blender")" ]; then
-    echo "$0: no such executable “$blender”" 1>&2
-    exit 3
+    opterror "no such executable “$blender”"
 fi
 if [ $# != 1 ]; then
-    echo $'Usage:\n\t'"$0" $'<blendfile>\n' 1>&2
-    exit 3
+    opterror $'Usage:\n\t'"$0" $'<blendfile>\n'
 fi
 export RENDER_blendfile="$1"
 
