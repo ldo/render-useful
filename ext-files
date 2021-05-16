@@ -11,6 +11,12 @@
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
+opterror()
+  {
+    echo "$0: $1" 1>&2
+    exit 3
+  } # opterror
+
 blender=blender
 full_json=
 presence=
@@ -39,8 +45,7 @@ for ((;;)); do
     elif [ "$opt" = "test-requires" ]; then
         test_requires="$val"
     else
-        echo "$0: bad option $opt" 1>&2
-        exit 3
+        opterror "bad option $opt"
     fi
 done
 incompat=0
@@ -48,16 +53,13 @@ for v in full_json presence test_missing test_requires; do
     incompat=$(($incompat + $(if [ -n "${!v}" ]; then echo -n 1; else echo -n 0; fi)))
 done
 if [ $incompat -gt 1 ]; then
-    echo "$0: only one of --full, --presence, --test-missing or --test-requires can be specified" 1>&2
-    exit 3
+    opterror "only one of --full, --presence,, --test-missing or --test-requires can be specified"
 fi
 if [ -z "$(type -p "$blender")" ]; then
-    echo "$0: no such executable “$blender”" 1>&2
-    exit 3
+    opterror "no such executable “$blender”"
 fi
 if [ $# != 1 ]; then
-    echo $'Usage:\n\t'"$0" $'<blendfile>\n' 1>&2
-    exit 3
+    opterror $'Usage:\n\t'"$0" $'<blendfile>\n'
 fi
 export RENDER_blendfile="$1"
 export RENDER_full_json="$full_json"
