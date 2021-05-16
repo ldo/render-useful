@@ -6,13 +6,15 @@
 #
 #     render-info [options...] blendfile
 #
-# where the only option is
+# where the options are
 #
 #    --blender=blender
 #          specifies the path to the Blender executable. Defaults to
 #          searching for the name “blender” in your PATH.
+#    --json
+#          format the output as JSON.
 #
-# Copyright 2013-2016 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2013-2021 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -23,6 +25,7 @@ opterror()
   } # opterror
 
 blender=blender
+json_output=
 for ((;;)); do
     if [ "${1:0:2}" != "--" ]; then
         break
@@ -37,6 +40,8 @@ for ((;;)); do
     opt="${opt%%=*}"
     if [ "$opt" = "blender" ]; then
         blender="$val"
+    elif [ "$opt" = "json" ]; then
+        json_output=1
     else
         opterror "bad option $opt"
     fi
@@ -48,10 +53,12 @@ if [ $# != 1 ]; then
     opterror $'Usage:\n\t'"$0" $'<blendfile>\n'
 fi
 export RENDER_blendfile="$1"
+export RENDER_json_output="$json_output"
 
 "$blender" -noaudio 5>&1 1>/dev/null -b -P <(cat <<'EOD'
 import sys
 import os
+import json
 import bpy
 
 out = os.fdopen(5, "w")
@@ -59,78 +66,183 @@ out = os.fdopen(5, "w")
   # output being polluted by Blender’s messages
 
 blendfile = os.getenv("RENDER_blendfile")
+json_output = os.getenv("RENDER_json_output", "") != ""
 bpy.ops.wm.open_mainfile(filepath = blendfile)
 
 active_marker = "→"
 other_marker = "*"
+if json_output :
+    out.write("{\n")
+    out.write("    \"active_scene\": %s,\n" % json.dumps(bpy.context.scene.name))
+    out.write("    \"scenes\":")
+    first_scene = True
+#end if
 for scene in bpy.data.scenes :
-    out.write \
-      (
-            "%s scene “%s”, engine “%s”\n"
-        %
-            (
-                (other_marker, active_marker)[scene.name == bpy.context.scene.name],
-                scene.name,
-                scene.render.engine,
-            )
-      )
-    out.write \
-      (
-        "    frames = %d to %d by %d" % (scene.frame_start, scene.frame_end, scene.frame_step)
-      )
-    if scene.render.frame_map_old != scene.render.frame_map_new :
+    if json_output :
+        if first_scene :
+            out.write("\n        [")
+        else :
+            out.write(",")
+        #end if
+        out.write("\n")
         out.write \
           (
-                ", time remap old:new = %d:%d"
+                "            {\n"
+                "                \"name\": %s,\n"
+                "                \"engine\": %s,\n"
+                "                \"frame_range\": [%d, %d, %d],\n"
+                "                \"time_remap\": [%d, %d],\n"
+                "                \"resolution_percent\": %d,\n"
+                "                \"resolution_size\": [%d, %d],\n"
             %
-                (scene.render.frame_map_old, scene.render.frame_map_new)
+                (
+                    json.dumps(scene.name),
+                    json.dumps(scene.render.engine),
+                    scene.frame_start, scene.frame_end, scene.frame_step,
+                    scene.render.frame_map_old, scene.render.frame_map_new,
+                    scene.render.resolution_percentage,
+                    scene.render.resolution_x, scene.render.resolution_y,
+                )
           )
-    #end if
-    out.write("\n")
-    out.write \
-      (
-            "    render resolution = %d%% × (%d, %d)\n"
-        %
-            (scene.render.resolution_percentage, scene.render.resolution_x, scene.render.resolution_y)
-      )
-    multiview = getattr(scene.render, "use_multiview", False)
-    if multiview :
+        first_scene = False
+    else :
         out.write \
           (
-                "    multiview = %s\n"
+                "%s scene “%s”, engine “%s”\n"
             %
-                scene.render.views_format
+                (
+                    (other_marker, active_marker)[scene.name == bpy.context.scene.name],
+                    scene.name,
+                    scene.render.engine,
+                )
           )
-    #end if
-    nr_cameras = 0
-    for object in scene.objects :
-        if object.type == "CAMERA" :
-            nr_cameras += 1
-            camera = object.data
+        out.write \
+          (
+            "    frames = %d to %d by %d" % (scene.frame_start, scene.frame_end, scene.frame_step)
+          )
+        if scene.render.frame_map_old != scene.render.frame_map_new :
             out.write \
               (
-                    "    %s camera “%s” type %s"
+                    ", time remap old:new = %d:%d"
                 %
-                    (
-                        (other_marker, active_marker)[scene.camera != None and object.name == scene.camera.name],
-                        object.name,
-                        camera.type,
-                    )
+                    (scene.render.frame_map_old, scene.render.frame_map_new)
               )
-            if multiview :
+        #end if
+        out.write("\n")
+        out.write \
+          (
+                "    render resolution = %d%% × (%d, %d)\n"
+            %
+                (scene.render.resolution_percentage, scene.render.resolution_x, scene.render.resolution_y)
+          )
+    #end if
+    multiview = getattr(scene.render, "use_multiview", False)
+    if multiview :
+        if json_output :
+            out.write \
+              (
+                    "                \"multiview\": %s,\n"
+                %
+                    json.dumps(scene.render.views_format)
+              )
+        else :
+            out.write \
+              (
+                    "    multiview = %s\n"
+                %
+                    scene.render.views_format
+              )
+        #end if
+    #end if
+    nr_cameras = 0
+    if json_output :
+        if scene.camera != None :
+            out.write("                \"active_camera\": %s,\n" % json.dumps(scene.camera.name))
+        #end if
+        out.write("                \"cameras\":")
+    #end if
+    for object in scene.objects :
+        if object.type == "CAMERA" :
+            if json_output :
+                if nr_cameras == 0 :
+                    out.write("\n                    [")
+                else :
+                    out.write(",")
+                #end if
+                out.write("\n                        {\n")
+            #end if
+            nr_cameras += 1
+            camera = object.data
+            if json_output :
                 out.write \
                   (
-                        ", stereo convergence %s, pivot %s"
+                        "                            \"name\": %s,\n"
+                        "                            \"type\": %s"
                     %
-                        (camera.stereo.convergence_mode, camera.stereo.pivot)
+                        (json.dumps(object.name), json.dumps(camera.type))
+                  )
+            else :
+                out.write \
+                  (
+                        "    %s camera “%s” type %s"
+                    %
+                        (
+                            (other_marker, active_marker)[scene.camera != None and object.name == scene.camera.name],
+                            object.name,
+                            camera.type,
+                        )
                   )
             #end if
-            out.write("\n")
+            if multiview :
+                if json_output :
+                    out.write \
+                      (
+                            ",\n                            \"stereo_convergence_mode\": %s,\n"
+                            "                            \"stereo_pivot\": %s"
+                        %
+                            (
+                                json.dumps(camera.stereo.convergence_mode),
+                                json.dumps(camera.stereo.pivot),
+                            )
+                      )
+                else :
+                    out.write \
+                      (
+                            ", stereo convergence %s, pivot %s"
+                        %
+                            (camera.stereo.convergence_mode, camera.stereo.pivot)
+                      )
+                #end if
+            #end if
+            if json_output :
+                out.write("\n                        }")
+            else :
+                out.write("\n")
+            #end if
         #end if
     #end for
-    out.write("    Cameras: %d\n" % nr_cameras)
+    if json_output :
+        if nr_cameras != 0 :
+            out.write("\n                    ")
+        else :
+            out.write(" [")
+        #end if
+        out.write("]\n")
+    else :
+        out.write("    Cameras: %d\n" % nr_cameras)
+    #end if
+    if json_output :
+        out.write("            }")
+    #end if
 #end for
-out.write("Scenes: %d\n" % len(bpy.data.scenes))
+if json_output :
+    if not first_scene :
+        out.write("\n        ")
+    #end if
+    out.write("]\n}\n")
+else :
+    out.write("Scenes: %d\n" % len(bpy.data.scenes))
+#end if
 out.flush()
 EOD
 )
