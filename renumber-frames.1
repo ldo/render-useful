@@ -1,22 +1,18 @@
-.TH "RENUMBER-FRAMES" "1" "2021-05-14" "Geek Central" "Render-Useful Collection"
+.TH "RENUMBER-FRAMES" "1" "2021-05-20" "Geek Central" "Render-Useful Collection"
 
 .SH NAME
-renumber\-frames \- reassign frame numbers to sequences of frame files
+renumber-frames - reassign frame numbers to sequences of frame files
 
 .SH SYNOPSIS
-.BR renumber\-frames " [" «options» "...]"
-.B «op» «fromdir» «fromrange» «todir» «torange»
+\fBrenumber-frames\fR [\fIoptions\fR...] \fIop fromdir fromrange todir torange\fR
 
 .SH DESCRIPTION
 .P
-.B renumber\-frames
-is a command-line tool that does bulk renaming of files with numerically-assigned
-names like
-.BR 0001.png ", " 0002.png
+\fBrenumber-frames\fR is a command-line tool that does bulk renaming of files
+with numerically-assigned names like \fB0001.png\fR, \fB0002.png\fR
 etc, giving them new names in a specified range. The files can be renamed in place,
 copied or moved to a new directory under the new names, or just symlinked or hardlinked
-to the new directory, depending on
-.BR «op» .
+to the new directory, depending on \fIop\fR.
 
 The script automatically recognizes a common file extension and the number of digits
 in the file names: the name part before the extension should consist entirely of decimal
@@ -26,7 +22,7 @@ the new names will have the same number of digits as the old ones.
 .SH ARGUMENTS
 
 .TP
-.B «op»
+.I op
 The operation to perform:
 .RS
 .TP
@@ -47,76 +43,60 @@ The files are hardlinked under the new names.
 .RE
 
 .TP
-.B «fromdir»
+.I fromdir
 The directory containing the frame files to operate on.
 
 .TP
-.B «fromrange»
-The
-.I range\-spec
-(see below) specifying the range of files to operate on.
+.I fromrange
+The \fIrange-spec\fR (see below) specifying the range of files to operate on.
 
 .TP
-.B «todir»
+.I todir
 The directory in which to put the renamed files.
 
 .TP
-.B «torange»
-The
-.I range\-spec
-(see below) giving the new names for the files.
+.I torange
+The \fIrange-spec\fR (see below) giving the new names for the files.
 
 .PP
-A
-.I range\-spec
-takes one of the following forms, where
-.BR «lo» " and " «hi»
-are positive decimal integers:
+A \fIrange-spec\fR takes one of the following forms, where \fIlo\fR and
+\fIhi\fR are positive decimal integers:
 
 .TP
-.BR «lo» - «hi»
-.RB "\-\- frame numbers " «lo» " to " «hi» " inclusive"
+.IR lo - hi
+.RI "-- frame numbers " lo " to " hi " inclusive"
 
 .TP
-.BR «lo» : «hi»
-.RB "\-\- frame numbers " «lo» " to (" «hi» " - 1) inclusive"
+.IR lo : hi
+.RI "-- frame numbers " lo " to (" hi " - 1) inclusive"
 
 .TP
-.BR «lo» + «count»
-.RB "\-\- frame numbers " «lo» " to (" «lo» " + " «count» " - 1) inclusive"
+.IR lo + count
+.RI "-- frame numbers " lo " to (" lo " + " count " - 1) inclusive"
 
 .TP
-.B «lo»
-\-\- start at frame number
-.BR «lo»
-and increment as necessary. Only permitted for the
-.BR «torange» ;
-successive frame numbers will be assigned from this starting point for
-corresponding frames in
-.BR «fromrange» .
+.I lo
+-- start at frame number \fIlo\fR and increment as necessary. Only
+permitted for the \fItorange\fR; successive frame numbers will be
+assigned from this starting point for corresponding frames in
+\fIfromrange\fR.
 
 .PP
-For move operations,
-.B «fromrange»
-and
-.B «torange»
-may overlap, even if
-.B «fromdir»
-and
-.B «todir»
-are the same, provided that frames will not be given the same names as
-existing frames that are not being renamed.
+For move operations, \fIfromrange\fR and \fItorange\fR may overlap,
+even if \fIfromdir\fR and \fItodir\fR are the same, provided that
+frames will not be given the same names as existing frames that
+are not being renamed.
 
 .SH OPTIONS
 
 .TP
-.B \-\-digits=«to_digits»
+\fB--digits=\fIto_digits\fR
 If specified, then the new file names will have this number
 of digits in their names, instead of the same number as the
 original files.
 
 .TP
-.B \-\-dry-run
+\fB--dry-run\fR
 If specified, then no actual copy/move/link operations will
 be performed, only the messages will be output. Useful for
 confirming that the operation will produce the correct results
@@ -125,17 +105,14 @@ before turning it loose on the filesystem.
 .SH EXAMPLES
 
 .RS
-renumber\-frames copy fromdir/ 1\-100 todir/ 200
+\fBrenumber-frames copy fromdir/ 1-100 todir/ 200\fR
 .RE
 
-Copies frames numbered 1 to 100 (inclusive) from
-.B fromdir/
-to
-.BR todir/ ,
-renumbering them to start from 200.
+Copies frames numbered 1 to 100 (inclusive) from \fBfromdir/\fR to
+\fBtodir/\fR, renumbering them to start from 200.
 
 .RS
-renumber\-frames \-\-digits=5 move framesdir/ 1\-1000 framesdir/ 1
+\fBrenumber-frames --digits=5 move framesdir/ 1-1000 framesdir/ 1\fR
 .RE
 
 Renames the frames within the same directory while keeping the same frame numbers,
