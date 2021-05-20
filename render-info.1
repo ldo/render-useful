@@ -1,0 +1,47 @@
+.TH "RENDER-INFO" "1" "2021-05-20" "Geek Central" "Render-Useful Collection"
+
+.SH NAME
+render-info - show summary of render-related settings in a
+.UR https://blender.org/
+Blender
+.UE
+document.
+
+.SH SYNOPSIS
+\fBrender-info\fR [\fIoptions\fR ...] \fIblend-file\fR
+
+.SH DESCRIPTION
+.P
+.B render-info
+is a command-line tool that examines a
+.UR https://blender.org/
+Blender
+.UE
+document to list the scenes defined in that document, and the
+render settings and camera settings defined for each scene.
+
+.B render-info
+works by invoking Blender in batch mode and using its Python API to perform
+an analysis of the given document.
+
+.SH OPTIONS
+
+.TP
+\fB--blender=\fIblender\fR
+specifies the path to the Blender executable. Defaults to
+searching for the name “blender” in your \fBPATH\fR.
+
+.TP
+\fB--json\fR
+specifies that the output shoult be format as JSON, suitable
+for input into other processing tools. Otherwise it is displayed
+in a more directly human-readable format.
+
+.SH EXAMPLES
+
+.RS
+\fBrender-info test.blend\fR
+.RE
+
+displays information about the scenes, cameras and render settings
+in the file \fBtest.blend\fR.
