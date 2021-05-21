@@ -45,7 +45,6 @@ animation=
 crash_protect=
 threads=
 time_remap=
-crossed=
 trusted=
 preexec=
 for ((;;)); do
@@ -73,8 +72,6 @@ for ((;;)); do
         collections="$val"
     elif [ "$opt" = "crash-protect" ]; then
         crash_protect=1
-    elif [ "$opt" = "crossed" ]; then
-        crossed=1
     elif [ "$opt" = "digits" ]; then
         digits="$val"
     elif [ "$opt" = "existing" ]; then
@@ -196,7 +193,6 @@ export RENDER_percentage="$render_percentage"
 export RENDER_width="$render_width"
 export RENDER_height="$render_height"
 export RENDER_preexec="$preexec"
-export RENDER_crossed="$crossed"
 export RENDER_trusted="$trusted"
 export RENDER_digits="$digits"
 export RENDER_renumber="$renumber"
@@ -601,7 +597,6 @@ if time_remap != None :
     time_remap = tuple(int(i) for i in time_remap.split(":", 1))
 #end if
 preexec = get_optional_env("RENDER_preexec")
-crossed = os.getenv("RENDER_crossed", "") != ""
 frame_digits = int(os.getenv("RENDER_digits"))
 frame_renumber = get_optional_env("RENDER_renumber", int)
 outformat = get_optional_env("RENDER_outformat", parse_format_spec)
