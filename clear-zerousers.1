@@ -43,6 +43,14 @@ searching for the name “blender” in your \fBPATH\fR.
 specifies that orphaned blocks are actually to be cleared from
 the document. Without this option, they are merely displayed.
 
+.SH NOTES
+
+Blender has the concept of \fIfake users\fR. That is, the user count
+of a block is increased by one by clicking an icon, just to ensure the block
+will not be deleted from the document, even if it is not explicitly used
+anywhere. Since the “fake” user is included in the user count,
+\fBclear-zerousers\fR will not delete such a block.
+
 .SH EXAMPLES
 
 .RS
