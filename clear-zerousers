@@ -1,0 +1,112 @@
+#!/bin/bash
+#+
+# This script looks for data blocks in a .blend file that have zero
+# users, with the option to repeatedly resave the file until all
+# such blocks disappear. This is needed because Blender’s detection
+# of unused data blocks doesn’t seem to notice when blocks only
+# referenced by ones with zero users should also be cleaned up.
+# Instead, these are saved with the file, even after their user
+# counts go to zero. Though of course they are cleaned up in their
+# turn the next time the file is saved.
+#
+# So what this script is keep resaving the file as long as such
+# orphaned blocks exist, until they all disappear.
+#
+# Copyright 2021 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
+#-
+
+opterror()
+  {
+    echo "$0: $1" 1>&2
+    exit 3
+  } # opterror
+
+blender=blender
+clear=
+for ((;;)); do
+    if [ "${1:0:2}" != "--" ]; then
+        break
+    fi
+    if [ "$1" == "--" ]; then
+        shift
+        break
+    fi
+    opt="${1:2:${#1}}"
+    shift
+    val="${opt#*=}"
+    opt="${opt%%=*}"
+    if [ "$opt" = "blender" ]; then
+        blender="$val"
+    elif [ "$opt" = "clear" ]; then
+        clear=1
+    else
+        opterror "bad option $opt"
+    fi
+done
+if [ -z "$(type -p "$blender")" ]; then
+    opterror "no such executable “$blender”"
+fi
+if [ $# != 1 ]; then
+    opterror $'Usage:\n\t'"$0" $'<blendfile>\n'
+fi
+
+export RENDER_blendfile="$1"
+export RENDER_clear="$clear"
+
+"$blender" -noaudio 5>&1 1>/dev/null -b -P <(cat <<'EOD'
+import sys
+import os
+import json
+import bpy
+
+out = os.fdopen(5, "w")
+  # use a different fd from stdout, only way it seems to avoid
+  # output being polluted by Blender’s messages
+
+blendfile = os.getenv("RENDER_blendfile")
+do_clear = os.getenv("RENDER_clear", "") != ""
+
+pašs = 0
+while True :
+    bpy.ops.wm.open_mainfile(filepath = blendfile)
+    pašs += 1
+    nr_orphaned = 0
+    out.write("pass: %d\n" % pašs)
+    for category in dir(bpy.data) :
+        if not category.startswith("_") :
+            items = getattr(bpy.data, category)
+            out.write("scanning %s\n" % category)
+            if isinstance(items, bpy.types.bpy_prop_collection) :
+                for item in items :
+                    if item.users == 0 :
+                        out.write \
+                          (
+                                "%s %s has no users.\n"
+                            %
+                                (type(item).__name__, item.name)
+                          )
+                        nr_orphaned += 1
+                    #end if
+                #end for
+            #end if
+        #end if
+    #end for
+    out.write \
+      (
+            "%s%s orphaned data blocks found.\n"
+        %
+            (
+                (lambda : "No", lambda : "%d" % nr_orphaned)[nr_orphaned != 0](),
+                ("", " more")[pašs > 1],
+            )
+      )
+    if not do_clear or nr_orphaned == 0 :
+        break
+    out.write("save mainfile ... ")
+    bpy.ops.wm.save_mainfile()
+    out.write("done.\n")
+#end while
+
+EOD
+)
