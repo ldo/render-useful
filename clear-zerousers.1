@@ -1,0 +1,58 @@
+.TH "CLEAR-ZEROUSERS" "1" "2021-05-21" "Geek Central" "Render-Useful Collection"
+
+.SH NAME
+clear-zerousers - display and clean out orphaned data blocks from a
+.UR https://blender.org/
+Blender
+.UE
+document.
+
+.SH SYNOPSIS
+\fBclear-zerousers\fR [\fIoptions\fR ...] \fIblend-file\fR
+
+.SH DESCRIPTION
+.P
+.B clear-zerousers
+is a command-line tool that examines a
+.UR https://blender.org/
+Blender
+.UE
+document, looking for data blocks with a “user count” (reference
+count) of zero. Such blocks are not supposed to be included when
+Blender saves a document. But it seems its current cleanup algorithm
+does not consider blocks being referenced by a block being omitted
+from the save; even though their counts might go to zero, they get
+saved with the document regardless.
+
+However, if the document is reloaded and saved again, these blocks will be
+deleted. But not any blocks that they were referencing for which the user
+count has now gone to zero. And so on.
+
+So what \fBclear-zerousers\fR does is keep reloading and saving the document,
+until all such blocks have disappeared.
+
+.SH OPTIONS
+
+.TP
+\fB--blender=\fIblender\fR
+specifies the path to the Blender executable. Defaults to
+searching for the name “blender” in your \fBPATH\fR.
+
+.TP
+\fB--clear\fR
+specifies that orphaned blocks are actually to be cleared from
+the document. Without this option, they are merely displayed.
+
+.SH EXAMPLES
+
+.RS
+\fBclear-zerousers test.blend\fR
+.RE
+
+Shows a list of orphaned blocks from the file \fBtest.blend\fR.
+
+.RS
+\fBclear-zerousers --clear test.blend\fR
+.RE
+
+Clears out orphaned blocks from the file \fBtest.blend\fR.
