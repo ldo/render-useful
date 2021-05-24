@@ -76,13 +76,13 @@ while True :
     for category in dir(bpy.data) :
         if not category.startswith("_") :
             items = getattr(bpy.data, category)
-            out.write("scanning %s\n" % category)
             if isinstance(items, bpy.types.bpy_prop_collection) :
+                out.write("scanning %s[%d]\n" % (category, len(items)))
                 for item in items :
                     if item.users == 0 :
                         out.write \
                           (
-                                "%s %s has no users.\n"
+                                " %s %s has no users.\n"
                             %
                                 (type(item).__name__, item.name)
                           )
