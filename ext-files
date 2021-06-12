@@ -113,7 +113,7 @@ def path_ok(path) :
         )
 #end path_ok
 
-out = os.fdopen(5, "w")
+out = os.fdopen(5, "w", encoding = "utf-8")
   # use a different fd from stdout, only way it seems to avoid
   # output being polluted by Blender’s messages
 
