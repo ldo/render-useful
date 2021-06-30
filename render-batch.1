@@ -198,14 +198,18 @@ file.
 
 .TP
 .BR \-\-resolution= [ «width» ] : [ «height» ]
-specifies the dimensions in pixels of each rendered image. At least
-one of
+.TP
+.B \-\-resolution=«max-dimen»
+specifies the dimensions in pixels of each rendered image. If the colon
+is present, then at least one of
 .B width
 and
 .B height
 must be specified; if one is omitted, it is
 calculated from the other so as to maintain the existing aspect
-ratio.
+ratio. If there is no colon, then the value is taken as the maximum
+dimension for the render, and the other dimension is calculated so as
+to maintain the existing aspect ratio.
 
 .TP
 .B \-\-samples=«samples»

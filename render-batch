@@ -13,7 +13,7 @@
 # External command needed: identify (part of ImageMagick/GraphicsMagick)
 # used as part of --crash-protect option with Eevee.
 #
-# Copyright 2013-2020 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2013-2021 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
@@ -36,8 +36,7 @@ only_view_layer=
 digits=4
 reunumber=
 render_percentage=
-render_width=
-render_height=
+render_resolution=
 out=
 outformat=
 existing=error
@@ -98,12 +97,7 @@ for ((;;)); do
     elif [ "$opt" = "renumber" ]; then
         renumber="$val"
     elif [ "$opt" = "resolution" ]; then
-        IFS=':' read -a items <<<"$val"
-        render_width="${items[0]}"
-        render_height="${items[1]}"
-        if [ -z "$render_percentage" ]; then
-            render_percentage=100
-        fi
+        render_resolution="$val"
     elif [ "$opt" = "samples" ]; then
         samples="$val"
     elif [ "$opt" = "scene" ]; then
@@ -190,8 +184,7 @@ export RENDER_only_view_layer="$only_view_layer"
 export RENDER_samples="$samples"
 export RENDER_threads="$threads"
 export RENDER_percentage="$render_percentage"
-export RENDER_width="$render_width"
-export RENDER_height="$render_height"
+export RENDER_resolution="$render_resolution"
 export RENDER_preexec="$preexec"
 export RENDER_trusted="$trusted"
 export RENDER_digits="$digits"
@@ -588,8 +581,24 @@ if render_percentage != None :
         render_percentage = float(render_percentage)
     #end try
 #end if
-render_width = get_optional_env("RENDER_width", int)
-render_height = get_optional_env("RENDER_height", int)
+render_resolution = get_optional_env("RENDER_resolution")
+if render_resolution != None :
+    if ":" in render_resolution :
+        render_resolution = tuple \
+          (
+            (lambda : None, lambda : int(x))[x != ""]()
+            for x in render_resolution.split(":", 1)
+          )
+        if all(x == None for x in render_resolution) :
+            raise ValueError("at least one of resolution width or height must be specified")
+        #end if
+    else :
+        render_resolution = int(render_resolution)
+    #end if
+    if render_percentage == None :
+        render_percentage = 100
+    #end if
+#end if
 animation = os.getenv("RENDER_animation", "") != ""
 crash_protect = os.getenv("RENDER_crash_protect", "") != ""
 time_remap = get_optional_env("RENDER_time_remap")
@@ -857,13 +866,39 @@ while True :
             set_collections_from_object(active_camera)
         #end if
 
-        if render_width != None or render_height != None :
-            # maintain aspect ratio if only one is specified
-            if render_width == None :
-                render_width = round(render_height * active_scene.render.resolution_x / active_scene.render.resolution_y)
-            #end if
-            if render_height == None :
-                render_height = round(render_width * active_scene.render.resolution_y / active_scene.render.resolution_x)
+        if render_resolution != None :
+            # maintain aspect ratio if only one dimension is specified
+            if isinstance(render_resolution, tuple) :
+                render_width, render_height = render_resolution
+                if render_width == None :
+                    render_width = round \
+                      (
+                            render_height
+                        *
+                            active_scene.render.resolution_x
+                        /
+                            active_scene.render.resolution_y
+                      )
+                #end if
+                if render_height == None :
+                    render_height = round \
+                      (
+                            render_width
+                        *
+                            active_scene.render.resolution_y
+                        /
+                            active_scene.render.resolution_x
+                      )
+                #end if
+            else :
+                factor = \
+                    (
+                        render_resolution
+                    /
+                        max(active_scene.render.resolution_x, active_scene.render.resolution_y)
+                    )
+                render_width = round(active_scene.render.resolution_x * factor)
+                render_height = round(active_scene.render.resolution_y * factor)
             #end if
             active_scene.render.resolution_x = render_width
             active_scene.render.resolution_y = render_height
