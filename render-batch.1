@@ -1,4 +1,4 @@
-.TH "RENDER-BATCH" "1" "2021-05-13" "Geek Central" "Render-Useful Collection"
+.TH "RENDER-BATCH" "1" "2021-07-01" "Geek Central" "Render-Useful Collection"
 
 .SH NAME
 render\-batch \- batch-mode rendering of
@@ -195,6 +195,11 @@ is specified,
 otherwise the default is the setting in the
 .B .blend
 file.
+
+.TP
+.B \-\-renderer=«renderer»
+The renderer to use. Values which are recognized by Blender as standard
+are “BLENDER_EEVEE“, “BLENDER_WORKBENCH” or “CYCLES”.
 
 .TP
 .BR \-\-resolution= [ «width» ] : [ «height» ]

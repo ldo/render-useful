@@ -35,6 +35,7 @@ use_camera_collections=
 only_view_layer=
 digits=4
 reunumber=
+renderer=
 render_percentage=
 render_resolution=
 out=
@@ -94,6 +95,8 @@ for ((;;)); do
         else
             preexec="$val"
         fi
+    elif [ "$opt" = "renderer" ]; then
+        renderer="$val"
     elif [ "$opt" = "renumber" ]; then
         renumber="$val"
     elif [ "$opt" = "resolution" ]; then
@@ -183,6 +186,7 @@ export RENDER_use_camera_collections="$use_camera_collections"
 export RENDER_only_view_layer="$only_view_layer"
 export RENDER_samples="$samples"
 export RENDER_threads="$threads"
+export RENDER_renderer="$renderer"
 export RENDER_percentage="$render_percentage"
 export RENDER_resolution="$render_resolution"
 export RENDER_preexec="$preexec"
@@ -572,6 +576,7 @@ trusted = os.getenv("RENDER_trusted", "") != ""
 bpy.ops.wm.open_mainfile(filepath = blendfile, use_scripts = trusted)
 vse_render = os.getenv("RENDER_vse", "") != ""
 stereo_settings = os.getenv("RENDER_stereo_settings", None)
+renderer = os.getenv("RENDER_renderer", "")
 render_percentage = get_optional_env("RENDER_percentage")
 if render_percentage != None :
     try :
@@ -647,6 +652,9 @@ if scene_name != None :
     bpy.context.screen.scene = bpy.data.scenes[scene_name]
 #end if
 active_scene = bpy.context.scene
+if renderer != "" :
+    active_scene.render.engine = renderer
+#end if
 only_view_layer = os.getenv("RENDER_only_view_layer")
 if only_view_layer != "" :
     valid_view_layer = False
