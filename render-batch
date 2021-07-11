@@ -998,7 +998,12 @@ while True :
         if len(new_frames_undone) == 0 :
             # looks like render has completed successfully
             if crash_count != 0 :
-                sys.stdout.write("Completed after %d crashes.\n" % crash_count)
+                sys.stdout.write \
+                  (
+                        "Completed after %d %s.\n"
+                    %
+                        (crash_count, ("crash", "crashes")[crash_count != 1])
+                  )
             #end if
             break
         #end if
@@ -1006,7 +1011,10 @@ while True :
         crash_count += 1
         # only continue as long as actual progress is being made
         if len(new_frames_undone) == len(frames_undone) :
-            sys.stdout.write("Giving up after %d crashes.\n" % crash_count)
+            sys.stdout.write \
+              (
+                "Giving up after %d %s.\n" % (crash_count, ("crash", "crashes")[crash_count != 1])
+              )
             break
         #end if
         frames_undone = new_frames_undone
