@@ -230,6 +230,12 @@ how many concurrent threads to use for rendering (defaults to
 .RB “ auto ”).
 
 .TP
+.B \-\-tile-size=«width»[:«height»]
+specifies the size of tiles into which the image is split up to be
+processed by concurrent render threads. If only one number if
+specified, it is used for both the width and height.
+
+.TP
 .B \-\-time-remap=«old»:«new»
 alters the rendered frame rate to be
 .RB ( «new»

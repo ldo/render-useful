@@ -38,6 +38,7 @@ reunumber=
 renderer=
 render_percentage=
 render_resolution=
+tile_size=
 out=
 outformat=
 existing=error
@@ -110,6 +111,8 @@ for ((;;)); do
         do_stereo=1
     elif [ "$opt" = "threads" ]; then
         threads="$val"
+    elif [ "$opt" = "tile-size" ]; then
+        tile_size="$val"
     elif [ "$opt" = "time-remap" ]; then
         time_remap="$val"
     elif [ "$opt" = "trusted" ]; then
@@ -189,6 +192,7 @@ export RENDER_threads="$threads"
 export RENDER_renderer="$renderer"
 export RENDER_percentage="$render_percentage"
 export RENDER_resolution="$render_resolution"
+export RENDER_tile_size="$tile_size"
 export RENDER_preexec="$preexec"
 export RENDER_trusted="$trusted"
 export RENDER_digits="$digits"
@@ -604,6 +608,13 @@ if render_resolution != None :
         render_percentage = 100
     #end if
 #end if
+tile_size = get_optional_env("RENDER_tile_size")
+if tile_size != None :
+    tile_size = tuple(int(x) for x in tile_size.split(":", 1))
+    if len(tile_size) == 1 :
+        tile_size = tile_size * 2
+    #end if
+#end if
 animation = os.getenv("RENDER_animation", "") != ""
 crash_protect = os.getenv("RENDER_crash_protect", "") != ""
 time_remap = get_optional_env("RENDER_time_remap")
@@ -863,6 +874,9 @@ while True :
         #end if
         if nr_render_threads != None :
             active_scene.render.threads = nr_render_threads
+        #end if
+        if tile_size != None :
+            active_scene.render.tile_x, active_scene.render.tile_y = tile_size
         #end if
         active_camera = active_scene.camera
         if doing_stereo :
