@@ -78,6 +78,13 @@ if json_output :
     first_scene = True
 #end if
 for scene in bpy.data.scenes :
+    if scene.render.engine == "CYCLES" :
+        render_samples = scene.cycles.samples
+    elif scene.render.engine == "BLENDER_EEVEE" :
+        render_samples = scene.eevee.taa_render_samples
+    else :
+        render_samples = None
+    #end if
     if json_output :
         if first_scene :
             out.write("\n        [")
@@ -104,6 +111,14 @@ for scene in bpy.data.scenes :
                     scene.render.resolution_x, scene.render.resolution_y,
                 )
           )
+        if render_samples != None :
+            out.write \
+              (
+                    "                \"samples\": %d,\n"
+                %
+                    render_samples
+              )
+        #end if
         first_scene = False
     else :
         out.write \
@@ -135,6 +150,9 @@ for scene in bpy.data.scenes :
             %
                 (scene.render.resolution_percentage, scene.render.resolution_x, scene.render.resolution_y)
           )
+        if render_samples != None :
+            out.write("    samples = %d\n" % render_samples)
+        #end if
     #end if
     multiview = getattr(scene.render, "use_multiview", False)
     if multiview :
