@@ -2,10 +2,7 @@
 #+
 # This script invokes Blender to render the specified .blend file. It
 # allows the specification of various rendering settings directly from
-# the command line, overriding settings from the .blend file. It also
-# has the option for stereoscopic rendering, by doing the render
-# twice, offsetting the camera along its local X axis, and combining
-# the resulting images to produce a stereo pair.
+# the command line, overriding settings from the .blend file.
 #
 # Invocation details are documented in the render-batch(1) man page,
 # included with this script.
