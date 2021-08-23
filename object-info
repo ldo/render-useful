@@ -1,0 +1,119 @@
+#!/bin/bash
+#+
+# This script displays the names of objects in the various bpy.data
+# arrays in a specified .blend file.
+#
+# Copyright 2021 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
+#-
+
+opterror()
+  {
+    echo "$0: $1" 1>&2
+    exit 3
+  } # opterror
+
+blender=blender
+for ((;;)); do
+    if [ "${1:0:2}" != "--" ]; then
+        break
+    fi
+    if [ "$1" == "--" ]; then
+        shift
+        break
+    fi
+    opt="${1:2:${#1}}"
+    shift
+    val="${opt#*=}"
+    opt="${opt%%=*}"
+    if [ "$opt" = "blender" ]; then
+        blender="$val"
+    else
+        opterror "bad option $opt"
+    fi
+done
+if [ -z "$(type -p "$blender")" ]; then
+    opterror "no such executable “$blender”"
+fi
+if [ $# != 1 ]; then
+    opterror $'Usage:\n\t'"$0" $'<blendfile>\n'
+fi
+blendfile="$1"
+export RENDER_blendfile="$blendfile"
+
+"$blender" -noaudio 5>&1 1>/dev/null -b -P <(cat <<'EOD'
+import sys
+import os
+import enum
+import bpy
+
+class OBJTYPE(enum.Enum) :
+    "All the appendable object types that I know about."
+
+    ACTION = ("Action", "actions")
+    ARMATURE = ("Armature" "armatures")
+    BRUSH = ("Brush", "brushes")
+    CAMERA = ("Camera", "cameras")
+    COLLECTION = ("Collection", "collections")
+    FREESTYLE_LINESTYLE = ("FreestyleLineStyle", "linestyles")
+    CURVE = ("Curve", "curves")
+    FONT = ("Font", "fonts")
+    GREASE_PENCIL = ("GPencil", "grease_pencils")
+    # hair?
+    IMAGE = ("Image", "images")
+    LATTICE = ("Lattice", "lattices")
+    # library?
+    LIGHT_PROBE = ("LightProbe", "lightprobes")
+    LIGHT = ("Light", "lights")
+    # mask?
+    MATERIAL = ("Material", "materials")
+    METABALL = ("Metaball", "metaballs")
+    MESH = ("Mesh", "meshes")
+    # movieclip?
+    NODE_TREE = ("NodeTree", "node_groups")
+    OBJECT = ("Object", "objects")
+    # paint curve?
+    PALETTE = ("Palette", "palettes")
+    PARTICLE_SETTINGS = ("ParticleSettings", "particles")
+    # point cloud?
+    SCENE = ("Scene", "scenes")
+    # screen? shape key? simulation?
+    SOUND = ("Sound", "sounds")
+    SPEAKER = ("Speaker", "speakers")
+    TEXT = ("Text", "texts")
+    TEXTURE = ("Texture", "textures")
+    VOLUME = ("Volume", "volumes")
+    WORKSPACE = ("Workspace", "workspaces")
+    WORLD = ("World", "worlds")
+
+    @property
+    def picker_name(self) :
+        "name shown in Blender’s file-append dialog."
+        return self.value[0]
+    #end picker_name
+
+    @property
+    def attrname(self) :
+        "attribute name in bpy.data."
+        return self.value[1]
+    #end attrname
+
+#end OBJTYPE
+
+out = os.fdopen(5, "w", encoding = "utf-8")
+  # use a different fd from stdout, only way it seems to avoid
+  # output being polluted by Blender’s messages
+
+blendfile = os.getenv("RENDER_blendfile")
+bpy.ops.wm.open_mainfile(filepath = blendfile)
+for objtype in OBJTYPE :
+    objs = getattr(bpy.data, objtype.attrname, None)
+    if objs != None :
+        for obj in objs :
+            out.write("%s\t %s\n" % (objtype.picker_name, obj.name))
+        #end for
+    #end if
+#end for
+out.flush()
+EOD
+)
