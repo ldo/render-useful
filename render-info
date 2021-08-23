@@ -1,18 +1,10 @@
 #!/bin/bash
 #+
-# This script displays information about a specified .blend file,
-# namely the scenes, render settings and cameras. Invoke it as
-# follows:
+# This script displays rendering-related information about a specified
+# .blend file.
 #
-#     render-info [options...] blendfile
-#
-# where the options are
-#
-#    --blender=blender
-#          specifies the path to the Blender executable. Defaults to
-#          searching for the name “blender” in your PATH.
-#    --json
-#          format the output as JSON.
+# Invocation details are documented in the render-info(1) man page,
+# included with this script.
 #
 # Copyright 2013-2021 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
