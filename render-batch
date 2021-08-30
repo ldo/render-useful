@@ -197,6 +197,7 @@ export RENDER_renumber="$renumber"
 
 exec "$blender" -noaudio -b -P <(cat <<'EOD'
 import sys
+import types
 import os
 import io
 import time
@@ -567,6 +568,18 @@ def set_collections_from_object(obj) :
     " the object obj is visible."
     set_collections(replace_collections = set(c.name for c in obj.users_collection))
 #end set_collections_from_object
+
+def exec_text(textname, module_name = None) :
+    "for caller use; executes the specified text object within a new" \
+    " module context and returns the module object. If omitted, the" \
+    " module_name defaults to textname."
+    if module_name == None :
+        module_name = textname
+    #end if
+    new_mod = types.ModuleType(module_name)
+    exec(bpy.data.texts[textname].as_string(), new_mod.__dict__)
+    globals()[module_name] = new_mod
+#end exec_text
 
 #+
 # Mainline
