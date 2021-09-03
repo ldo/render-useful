@@ -33,19 +33,25 @@ the number of most recent frames to examine the timestamps on. If omitted,
 the default is 6.
 
 .TP
-.B \-\-estimate\-error|\-e
+.B \-\-estimate\-error
+.TQ
+.B \-e
 indcates that the output should include an estimate of the uncertainty
 in the completion time.
 
 .SH EXAMPLES
+.RS
 .B estimate\-remaining frames/ 1600
+.RE
 
 Shows an estimate of how long it will take for frame number 1600 to appear
 in directory
 .B frames/
 for a render currently in progress.
 
+.RS
 .B estimate\-remaining \-\-nr-frames=12 \-e frames/ 1600
+.RE
 
 Same as above, except base the estimate on the last 12 frames rendered, and
 also include an estimate of the uncertainty in the completion time.
