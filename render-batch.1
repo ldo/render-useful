@@ -71,8 +71,9 @@ to 4. The generated names will include leading zeroes as necessary to
 make up this number of digits, eg
 .RB “ 0001.png "”, “" 0002.png "” etc."
 
-.TP
+.PP
 .B \-\-preexec=«script»
+.RS
 executes the specified Python code prior to the rendering. May be
 specified multiple times; the values are concatenated in sequence,
 separated by newlines.
@@ -111,6 +112,7 @@ and all your custom definitions have to be qualified with that. The
 where \fItext_block_name\fR is the name of the text block to execute,
 and \fI[module_name]\fR is the name to give the new module; if
 omitted, this defaults to \fItext_block_name\fR.
+.RE
 
 .TP
 .BR \-\-existing=error | overwrite | replace\-all | skip
@@ -163,7 +165,7 @@ may be specified in either order.
 
 .TP
 .B \-\-frame=«framenr»
-.TP
+.TQ
 .BR \-\-frames= [[ «start» ],[ «end» ][, «step» ]]
 specifies the frame number (if a single frame) or frame range (if an
 animation) to be rendered. The start and end frame numbers can also
@@ -238,7 +240,7 @@ are “BLENDER_EEVEE“, “BLENDER_WORKBENCH” or “CYCLES”.
 
 .TP
 .BR \-\-resolution= [ «width» ] : [ «height» ]
-.TP
+.TQ
 .B \-\-resolution=«max-dimen»
 specifies the dimensions in pixels of each rendered image. If the colon
 is present, then at least one of
@@ -340,7 +342,9 @@ go through the rendering process again.
 .SH EXAMPLES
 
 .PP
+.RS
 .B render-batch test.blend test.png
+.RE
 
 Renders the default scene from
 .B test.blend
@@ -349,11 +353,13 @@ a still image, saving the rendered frame into
 .BR test.png.
 
 .PP
+.RS
 .nf
 .B render-batch \-\-animation \-\-existing=replace-all \e
 .RS 4
 .B \-\-preexec=\(dqbpy.context.scene.view_layers[0].cycles.use_denoising = True\(dq \e
 .B test.blend test\-anim
+.RE
 .fi
 .RE
 
