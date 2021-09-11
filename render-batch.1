@@ -78,40 +78,48 @@ executes the specified Python code prior to the rendering. May be
 specified multiple times; the values are concatenated in sequence,
 separated by newlines.
 
+Note that, to avoid clashes with the namespace of the \fBrender-batch\fR
+program itself, your script is executed within the global context of
+a special module object called \fBuserdefs\fR. Initially this module
+is empty apart from an automatic import of Blender’s \fBbpy\fR Python
+API module, and the \fBexec_text\fR function (described below); any
+globals you define will be kept here for subsequent \fB\-\-preexec\fR
+calls.
+
 If you need more than a few lines of custom script, it can be more
 convenient to save them in a text block in the Blender document.
-Supposing your text block was named \fBmy_custom_script\fR, and
-it defined a function called \fBmy_function\fR. You could invoke
-this with something like
+You could execute this with a statement like
 
 .RS
 .B \-\-preexec="exec(bpy.data.texts[\e"my_custom_script\e"].as_string())" \e
-.br
-.B \-\-preexec="my_function()"
 .RE
 
-but this runs the risk of your definitions colliding with those
-inside the \fBrender\-batch\fR script. A safer way is to use the
-\fBexec_text\fR function provided inside \fBrender\-batch\fR,
-precisely for this purpose, e.g.:
+but a slightly more convenient alternative is to use \fBexec_text\fR,
+e.g.:
 
 .RS
-.B \-\-preexec="exec_text(\e"my_custom_script\e", \e"my_mod\e")" \e
-.br
-.B \-\-preexec="my_mod.my_function()"
+.B \-\-preexec="exec_text(\e"my_custom_script\e")"
 .RE
 
-This way, you define just the one new global symbol \fBmy_mod\fR,
-and all your custom definitions have to be qualified with that. The
-\fBexec_text\fR function is invoked as
+This function can also be called as, e.g.:
+
+.RS
+.B \-\-preexec="exec_text(\e"my_custom_script\e", \e"my_mod\e")"
+.RE
+
+This way, your definitions are put into a new module named
+\fBmy_mod\fR, which becomes a submodule of \fBuserdefs\fR.
+
+The \fBexec_text\fR function is invoked as
 
 .RS
 \fBexec_text(\fItext_block_name\fB\fI[\fB, \fImodule_name]\fB)\fR
 .RE
 
 where \fItext_block_name\fR is the name of the text block to execute,
-and \fI[module_name]\fR is the name to give the new module; if
-omitted, this defaults to \fItext_block_name\fR.
+and \fI[module_name]\fR is the name to give a new module containing
+any definitions it creates; if omitted, the definitions go straight
+into \fBuserdefs\fR.
 .RE
 
 .TP

@@ -569,17 +569,30 @@ def set_collections_from_object(obj) :
     set_collections(replace_collections = set(c.name for c in obj.users_collection))
 #end set_collections_from_object
 
+userdefs = types.ModuleType("userdefs")
+userdefs.userdefs = userdefs
+userdefs.bpy = bpy
+
 def exec_text(textname, module_name = None) :
-    "for caller use; executes the specified text object within a new" \
-    " module context and defines the module globally with the specified" \
-    " name. If omitted, the module_name defaults to textname."
-    if module_name == None :
-        module_name = textname
+    "for caller use; executes the specified text object, either directly" \
+    " within the userdefs module context or (if module_name is specified) a" \
+    " separate module context which is then made a submodule of userdefs" \
+    " with the specified name."
+    if module_name != None :
+        new_mod = types.ModuleType(module_name)
+        setattr(new_mod, "userdefs", userdefs)
+        use_globals = new_mod.__dict__
+    else :
+        new_mod = None
+        use_globals = userdefs.__dict__
     #end if
-    new_mod = types.ModuleType(module_name)
-    exec(bpy.data.texts[textname].as_string(), new_mod.__dict__)
-    globals()[module_name] = new_mod
+    exec(bpy.data.texts[textname].as_string(), use_globals)
+    if new_mod != None :
+        setattr(userdefs, module_name, new_mod)
+    #end if
 #end exec_text
+userdefs.exec_text = exec_text
+del exec_text
 
 #+
 # Mainline
@@ -949,7 +962,7 @@ while True :
 
         compose_offset = None
         if preexec != None :
-            exec(preexec)
+            exec(preexec, userdefs.__dict__)
         #end if
         start_time = time.time()
         frames_done = 0
