@@ -571,8 +571,8 @@ def set_collections_from_object(obj) :
 
 def exec_text(textname, module_name = None) :
     "for caller use; executes the specified text object within a new" \
-    " module context and returns the module object. If omitted, the" \
-    " module_name defaults to textname."
+    " module context and defines the module globally with the specified" \
+    " name. If omitted, the module_name defaults to textname."
     if module_name == None :
         module_name = textname
     #end if
