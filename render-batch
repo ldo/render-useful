@@ -853,7 +853,7 @@ if crash_protect :
             set(os.listdir(use_render_out))
         )
     crash_count = 0
-    retry_count = reset_retry_count = 3
+    retry_count = reset_retry_count = 6
 #end if
 while True :
     if crash_protect :
