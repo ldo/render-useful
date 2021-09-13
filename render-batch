@@ -41,6 +41,7 @@ outformat=
 existing=error
 animation=
 crash_protect=
+crash_retry_count=
 threads=
 time_remap=
 trusted=
@@ -70,6 +71,8 @@ for ((;;)); do
         collections="$val"
     elif [ "$opt" = "crash-protect" ]; then
         crash_protect=1
+    elif [ "$opt" = "crash-retry-count" ]; then
+        crash_retry_count="$val"
     elif [ "$opt" = "digits" ]; then
         digits="$val"
     elif [ "$opt" = "existing" ]; then
@@ -168,6 +171,7 @@ else
 fi
 export RENDER_animation="$animation"
 export RENDER_crash_protect="$crash_protect"
+export RENDER_crash_retry_count="$crash_retry_count"
 export RENDER_time_remap="$time_remap"
 export RENDER_vse="$vse"
 if [ -n "$out" ]; then
@@ -640,6 +644,15 @@ if tile_size != None :
 #end if
 animation = os.getenv("RENDER_animation", "") != ""
 crash_protect = os.getenv("RENDER_crash_protect", "") != ""
+crash_retry_count = os.getenv("RENDER_crash_retry_count")
+if crash_retry_count != None :
+    crash_retry_count = int(crash_retry_count)
+    if crash_retry_count <= 0 :
+        raise ValueError("--crash-retry-count value must be positive")
+    #end if
+else :
+    crash_retry_count = 6
+#end if
 time_remap = get_optional_env("RENDER_time_remap")
 if time_remap != None :
     time_remap = tuple(int(i) for i in time_remap.split(":", 1))
@@ -853,7 +866,8 @@ if crash_protect :
             set(os.listdir(use_render_out))
         )
     crash_count = 0
-    retry_count = reset_retry_count = 6
+    retry_count = crash_retry_count
+    max_retries = 0
 #end if
 while True :
     if crash_protect :
@@ -1038,9 +1052,14 @@ while True :
             if crash_count != 0 :
                 sys.stdout.write \
                   (
-                        "Completed after %d %s.\n"
+                        "Completed after %d %s (max %d %s).\n"
                     %
-                        (crash_count, ("crash", "crashes")[crash_count != 1])
+                        (
+                            crash_count,
+                            ("crash", "crashes")[crash_count != 1],
+                            max_retries,
+                            ("retry", "retries")[max_retries != 1],
+                        )
                   )
             #end if
             break
@@ -1050,6 +1069,7 @@ while True :
         # only continue as long as actual progress is being made
         if len(new_frames_undone) == len(frames_undone) :
             retry_count -= 1
+            max_retries = max(max_retries, crash_retry_count - retry_count)
             if retry_count != 0 :
                 sys.stdout.write("Try again: %d\n" % retry_count)
             else :
@@ -1060,7 +1080,7 @@ while True :
                 break
             #end if
         else :
-            retry_count = reset_retry_count
+            retry_count = crash_retry_count
         #end if
         frames_undone = new_frames_undone
         sys.stdout.write("Crash restart %d, nr frames undone = %d\n" % (crash_count, len(frames_undone)))
