@@ -1063,8 +1063,7 @@ while True :
             retry_count = reset_retry_count
         #end if
         frames_undone = new_frames_undone
-        sys.stdout.write("Crash restart %d\n" % crash_count)
-        sys.stdout.write("frames_undone = %s\n" % repr(frames_undone)) # debug
+        sys.stdout.write("Crash restart %d, nr frames undone = %d\n" % (crash_count, len(frames_undone)))
     #end if
 #end while
 
