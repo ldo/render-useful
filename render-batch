@@ -853,6 +853,7 @@ if crash_protect :
             set(os.listdir(use_render_out))
         )
     crash_count = 0
+    retry_count = reset_retry_count = 3
 #end if
 while True :
     if crash_protect :
@@ -1048,11 +1049,18 @@ while True :
         crash_count += 1
         # only continue as long as actual progress is being made
         if len(new_frames_undone) == len(frames_undone) :
-            sys.stdout.write \
-              (
-                "Giving up after %d %s.\n" % (crash_count, ("crash", "crashes")[crash_count != 1])
-              )
-            break
+            retry_count -= 1
+            if retry_count != 0 :
+                sys.stdout.write("Try again: %d\n" % retry_count)
+            else :
+                sys.stdout.write \
+                  (
+                    "Giving up after %d %s.\n" % (crash_count, ("crash", "crashes")[crash_count != 1])
+                  )
+                break
+            #end if
+        else :
+            retry_count = reset_retry_count
         #end if
         frames_undone = new_frames_undone
         sys.stdout.write("Crash restart %d\n" % crash_count)
