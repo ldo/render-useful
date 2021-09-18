@@ -644,8 +644,8 @@ if tile_size != None :
 #end if
 animation = os.getenv("RENDER_animation", "") != ""
 crash_protect = os.getenv("RENDER_crash_protect", "") != ""
-crash_retry_count = os.getenv("RENDER_crash_retry_count")
-if crash_retry_count != None :
+crash_retry_count = os.getenv("RENDER_crash_retry_count", "")
+if crash_retry_count != "" :
     crash_retry_count = int(crash_retry_count)
     if crash_retry_count <= 0 :
         raise ValueError("--crash-retry-count value must be positive")
