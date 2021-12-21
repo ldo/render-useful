@@ -1,0 +1,73 @@
+.TH "INCOMPRESS" "1" "2021-12-21" "Geek Central" "Render-Useful Collection"
+
+.SH NAME
+incompress - decompress and recompress
+.UR https://blender.org/
+Blender
+.UE
+documents.
+
+.SH SYNOPSIS
+\fBincompress\fR [\fIoptions\fR ...] \fIin-blend-file\fR \fI[out-blend-file]\fR
+
+.SH DESCRIPTION
+.P
+.B incompress
+is a command-line tool that can copy a
+.UR https://blender.org/
+Blender
+.UE
+document and change its compression format. Prior to Blender 3.0, such
+documents could be uncompressed or compressed in GZip format. In Blender 3.0,
+the compression format for new documents has been changed to
+.UR https://facebook.github.io/zstd/
+Zstandard
+.UE .
+.B incompress
+supports conversion between all three formats, though Zstandard compression/decompression
+requires the installation of the
+.UR https://github.com/indygreg/python-zstandard
+python-zstandard
+.UE
+module.
+
+.SH OPTIONS
+
+.TP
+\fB--compression=\fIformat\fR
+specifies the compression format to be used for writing \fBout-blend-file\fR.
+\fIformat\fR can be one of \fBnone\fR (uncompressed), \fBgzip\fR or \fBzstd\fR.
+If omitted, the default is \fBnone\fR.
+
+.TP
+\fB--info\fR
+causes \fBincompress\fR to output a line reporting the compression
+format of \fIin-blend-file\fR.
+
+.SH EXAMPLES
+
+.RS
+\fBincompress in.blend out.blend\fR
+.RE
+
+Copies \fBin.blend\fR to \fBout.blend\fR, ensuring that the output
+is uncompressed.
+
+.RS
+\fBincompress --compression=gzip in.blend out.blend\fR
+.RE
+
+Copies \fBin.blend\fR to \fBout.blend\fR, ensuring that the output
+is compressed in GZip format.
+
+.RS
+\fBincompress --info in.blend\fR
+.RE
+
+Reports on the compression state of \fBin.blend\fR and does nothing further
+with it.
+
+.SH CAVEAT
+
+It appears Blender 3.0 does not like seeing Zstandard compression applied
+to documents created by earlier versions of Blender.

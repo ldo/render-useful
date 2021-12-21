@@ -1,0 +1,235 @@
+#!/usr/bin/python3
+#+
+# This script handles conversion of .blend files between
+# the various available compressed formats, as well as
+# no compression at all.
+#
+# Copyright 2021 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
+#-
+
+import sys
+import enum
+import getopt
+import gzip
+try :
+    import zstandard # get from <https://github.com/indygreg/python-zstandard>
+except ImportError :
+    zstandard = None
+#end try
+
+#+
+# Compression support
+#-
+
+blender_sig = b"BLENDER"
+  # (decompressed) file must begin with this
+
+class UncompressedWrapper :
+
+    def __init__(self, fileobj, writing) :
+        self.fileobj = fileobj
+        self.writing = writing
+        if writing :
+            self.read = None
+            self.tell = None
+            self.write = fileobj.write
+            self.flush = fileobj.flush
+        else :
+            self.read = fileobj.read
+            self.tell = fileobj.tell
+            self.write = None
+            self.flush = None
+        #end if
+    #end __init__
+
+    def close(self) :
+        self.fileobj.close()
+        self.fileobj = None
+    #end close
+
+#end UncompressedWrapper
+
+class GzipWrapper :
+
+    def __init__(self, fileobj, writing) :
+        self.fileobj = fileobj
+        self.writing = writing
+        wrap = gzip.GzipFile(mode = ("r", "w")[writing], fileobj = fileobj)
+        self.wrap = wrap
+        if writing :
+            self.read = None
+            self.tell = None
+            self.write = wrap.write
+            self.flush = wrap.flush
+        else :
+            self.read = wrap.read
+            self.tell = wrap.tell
+            self.write = None
+            self.flush = None
+        #end if
+    #end __init__
+
+    def close(self) :
+        self.wrap.close()
+        self.fileobj.close() # no option for Gzip to do this for me
+        self.wrap = None
+        self.fileobj = None
+    #end close
+
+#end GzipWrapper
+
+if zstandard != None :
+
+    class ZStdWrapper :
+
+        def __init__(self, fileobj, writing) :
+            self.fileobj = fileobj
+            if writing :
+                comp = zstandard.ZstdCompressor()
+                wrap = comp.stream_writer(fileobj, closefd = True)
+                self.wrap = wrap
+                self.read = None
+                self.tell = None
+                self.write = wrap.write
+                self.flush = wrap.flush
+            else :
+                decomp = zstandard.ZstdDecompressor()
+                wrap = decomp.stream_reader(fileobj, closefd = True)
+                self.wrap = wrap
+                self.read = wrap.read
+                self.tell = wrap.tell
+                self.write = None
+                self.flush = None
+            #end if
+            self.close = wrap.close
+        #end def
+
+    #end ZStdWrapper
+
+else :
+    ZStdWrapper = None
+#end if
+
+class COMPRESSION(enum.Enum) :
+    "compression formats for .blend files."
+    NONE = ("none", None, UncompressedWrapper)
+    GZIP = ("gzip", b"\x1F\x8B", GzipWrapper)
+    ZSTD = ("zstd", b"\x28\xB5\x2F\xFD", ZStdWrapper) # Blender 3.0 and later
+
+    @property
+    def name(self) :
+        return \
+            self.value[0]
+    #end name
+
+    @property
+    def sig(self) :
+        "file using this format must begin with this bytestring."
+        return \
+            self.value[1]
+    #end sig
+
+    @property
+    def wrap(self) :
+        "wrapper class/function implementing this compression format."
+        return \
+            self.value[2]
+    #end wrap
+
+#end COMPRESSION
+
+#+
+# Mainline
+#-
+
+io_blocksize = 8192
+out_compression = COMPRESSION.NONE
+show_info = False
+opts, args = getopt.getopt \
+  (
+    sys.argv[1:],
+    "",
+    ("compression=", "info"),
+  )
+for keyword, value in opts :
+    if keyword == "--compression" :
+        out_compression = list(c for c in COMPRESSION if c.name == value.lower())
+        if len(out_compression) > 0 :
+            out_compression = out_compression[0]
+        else :
+            raise getopt.GetoptError("unrecognized compression format %s" % value)
+        #end if
+    elif keyword == "--info" :
+        show_info = True
+    #end if
+#end for
+if len(args) not in (1, 2) :
+    raise getopt.GetoptError("usage: %s «inblendfile» [«outblendfile»]" % sys.argv[0])
+#end if
+infilename = args[0]
+if len(args) > 1 :
+    outfilename = args[1]
+else :
+    outfilename = None
+#end if
+
+infile = open(infilename, "rb")
+try_formats = iter \
+  (
+    sorted
+      (
+        (c for c in list(COMPRESSION) if c.sig != None),
+        key = lambda c : len(c.sig)
+      )
+  )
+sig = b""
+while True :
+    in_compression = next(try_formats, None)
+    if in_compression == None :
+        # not compressed
+        in_compression = COMPRESSION.NONE
+        infile.seek(0)
+        infile = UncompressedWrapper(infile, False)
+        break
+    #end if
+    if len(in_compression.sig) != len(sig) :
+        sig += infile.read(len(in_compression.sig) - len(sig))
+    #end if
+    if sig == in_compression.sig :
+        if in_compression.wrap == None :
+            raise RuntimeError \
+              (
+                "file is %s-compressed, but decompression wrapper is not available" % in_compression.name
+              )
+        #end if
+        infile.seek(0)
+        infile = in_compression.wrap(infile, False)
+        break
+    #end if
+#end while
+if infile.read(len(blender_sig)) != blender_sig :
+    raise RuntimeError("uncompressed file does not begin with %s" % repr(blender_sig))
+#end if
+if show_info :
+    sys.stderr.write("%s uses “%s” compression\n" % (infilename, in_compression.name))
+#end if
+if outfilename != None :
+    if out_compression.wrap == None :
+        raise RuntimeError \
+          (
+            "%s compression requested, but compression wrapper is not available" % out_compression.name
+          )
+    #end if
+    outfile = out_compression.wrap(open(outfilename, "wb"), True)
+    # infile.seek(0) # zstd doesn’t allow seeking backwards
+    outfile.write(blender_sig) # instead, write out what I have already read
+    while True :
+        data = infile.read(io_blocksize)
+        if len(data) == 0 :
+            break
+        outfile.write(data)
+    #end while
+    outfile.close()
+#end if
+infile.close()
