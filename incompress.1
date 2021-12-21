@@ -44,6 +44,11 @@ If omitted, the default is \fBnone\fR.
 causes \fBincompress\fR to output a line reporting the compression
 format of \fIin-blend-file\fR.
 
+.SH BUGS
+
+The \fB--compression=zstd\fR option does not work correctly as yet, and has been
+disabled for now.
+
 .SH EXAMPLES
 
 .RS
@@ -66,8 +71,3 @@ is compressed in GZip format.
 
 Reports on the compression state of \fBin.blend\fR and does nothing further
 with it.
-
-.SH CAVEAT
-
-It appears Blender 3.0 does not like seeing Zstandard compression applied
-to documents created by earlier versions of Blender.
