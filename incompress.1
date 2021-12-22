@@ -1,4 +1,4 @@
-.TH "INCOMPRESS" "1" "2021-12-21" "Geek Central" "Render-Useful Collection"
+.TH "INCOMPRESS" "1" "2021-12-22" "Geek Central" "Render-Useful Collection"
 
 .SH NAME
 incompress - decompress and recompress
@@ -26,8 +26,8 @@ Zstandard
 .B incompress
 supports conversion between all three formats, though Zstandard compression/decompression
 requires the installation of the
-.UR https://github.com/indygreg/python-zstandard
-python-zstandard
+.UR https://github.com/sergey-dryabzhinsky/python-zstd
+python3-zstd
 .UE
 module.
 
@@ -43,11 +43,6 @@ If omitted, the default is \fBnone\fR.
 \fB--info\fR
 causes \fBincompress\fR to output a line reporting the compression
 format of \fIin-blend-file\fR.
-
-.SH BUGS
-
-The \fB--compression=zstd\fR option does not work correctly as yet, and has been
-disabled for now.
 
 .SH EXAMPLES
 
