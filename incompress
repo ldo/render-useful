@@ -26,6 +26,16 @@ except ImportError :
 blender_sig = b"BLENDER"
   # (decompressed) file must begin with this
 
+class ZSTD :
+    "various magic strings associated with the Zstandard compression format."
+    COMPR_FRAME_SIG = b"\x28\xB5\x2F\xFD"
+    SKIPPABLE_FRAME_SIG = b"\x5E\x2A\x4D\x18"
+      # seek-table spec:
+      # <https://github.com/facebook/zstd/blob/master/contrib/seekable_format/zstd_seekable_compression_format.md>
+    SEEK_MAGIC = b"\xb1\xea\x92\x8f"
+      # comes at end of seek table, so it can be found searching backwards
+#end ZSTD
+
 class UncompressedWrapper :
 
     def __init__(self, fileobj, writing) :
@@ -96,11 +106,6 @@ if zstd != None :
                 # It appears this requirement is considered a bug <https://developer.blender.org/T93858>
                 # and will be relaxed in later versions. But I create it anyway.
                 seek_table = []
-                ZSTD_SKIPPABLE_SIG = b"\x5E\x2A\x4D\x18"
-                  # seek-table spec:
-                  # <https://github.com/facebook/zstd/blob/master/contrib/seekable_format/zstd_seekable_compression_format.md>
-                ZSTD_SEEK_MAGIC = b"\xb1\xea\x92\x8f"
-                  # seek table ends with this
 
                 def write_compressed(data) :
                     # writes out a compressed frame, and records
@@ -130,14 +135,14 @@ if zstd != None :
 
                 def close() :
                     self.flush()
-                    fileobj.write(ZSTD_SKIPPABLE_SIG)
+                    fileobj.write(ZSTD.SKIPPABLE_FRAME_SIG)
                     fileobj.write(struct.pack("<L", len(seek_table) * 8 + 9))
                     for clen, dlen in seek_table :
                         fileobj.write(struct.pack("<LL", clen, dlen))
                     #end for
                     fileobj.write(struct.pack("<L", len(seek_table)))
                     fileobj.write(b"\x00") # no checksums (bit 7)
-                    fileobj.write(ZSTD_SEEK_MAGIC)
+                    fileobj.write(ZSTD.SEEK_MAGIC)
                     fileobj.close()
                     self.fileobj = None
                 #end close
@@ -224,7 +229,7 @@ class COMPRESSION(enum.Enum) :
     "compression formats for .blend files."
     NONE = ("none", None, UncompressedWrapper)
     GZIP = ("gzip", b"\x1F\x8B", GzipWrapper)
-    ZSTD = ("zstd", b"\x28\xB5\x2F\xFD", ZStdWrapper) # Blender 3.0 and later
+    ZSTD = ("zstd", ZSTD.COMPR_FRAME_SIG, ZStdWrapper) # Blender 3.0 and later
 
     @property
     def name(self) :
