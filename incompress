@@ -218,9 +218,9 @@ if zstd != None :
                                 block_size = block_header >> 3
                                 content_size = \
                                     {
-                                        0 : block_size,
-                                        1 : 1, # RLE block,
-                                        2 : block_size,
+                                        0 : block_size, # literal block
+                                        1 : 1, # RLE block
+                                        2 : block_size, # compressed block
                                     }[block_type]
                                 cbuf += fileobj.read(content_size)
                                 if last_block :
