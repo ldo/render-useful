@@ -101,11 +101,13 @@ if zstd != None :
                 self.tell = None
                 buf = b""
                 maxbuf = 32768
-                # Seek table is required for compatibility with Blender 3.0, to
-                # avoid “unsupported file format” error.
-                # It appears this requirement is considered a bug <https://developer.blender.org/T93858>
-                # and will be relaxed in later versions. But I create it anyway.
+                  # Some frame size roughly similar to what I see in files
+                  # created by Blender
                 seek_table = []
+                  # Seek table is required for compatibility with Blender 3.0, to
+                  # avoid “unsupported file format” error.
+                  # It appears this requirement is considered a bug <https://developer.blender.org/T93858>
+                  # and will be relaxed in later versions. But I create it anyway.
 
                 def write_compressed(data) :
                     # writes out a compressed frame, and records
