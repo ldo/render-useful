@@ -145,6 +145,7 @@ if zstd != None :
                     fileobj.write(ZSTD.SEEK_MAGIC)
                     fileobj.close()
                     self.fileobj = None
+                    self.write = self.flush = self.close = None # break any circularities
                 #end close
 
                 self.write = write
@@ -246,6 +247,7 @@ if zstd != None :
 
                 def close() :
                     fileobj.close()
+                    self.read = self.tell = self.close = None # break any circularities
                 #end close
 
                 self.read = read
