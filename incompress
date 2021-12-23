@@ -169,13 +169,14 @@ if zstd != None :
                             dbuf = dbuf[nrbytes:]
                             break
                         #end if
-                        if len(dbuf) != 0 :
-                            doffset += len(dbuf)
-                            result += dbuf
-                            dbuf = b""
-                        #end if
                         if eof :
+                            if len(dbuf) != 0 :
+                                doffset += len(dbuf)
+                                result += dbuf
+                                dbuf = b""
+                            #end if
                             break
+                        #end if
                         coffset = fileobj.tell()
                         sig = fileobj.read(4)
                         if len(sig) == 0 :
