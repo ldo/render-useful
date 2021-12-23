@@ -258,7 +258,7 @@ if zstd != None :
                 self.flush = None
                 self.close = close
             #end if
-        #end def
+        #end __init__
 
     #end ZStdWrapper
 
