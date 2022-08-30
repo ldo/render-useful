@@ -1,4 +1,4 @@
-.TH "INCOMPRESS" "1" "2021-12-22" "Geek Central" "Render-Useful Collection"
+.TH "INCOMPRESS" "1" "2022-08-30" "Geek Central" "Render-Useful Collection"
 
 .SH NAME
 incompress - decompress and recompress
@@ -44,6 +44,16 @@ If omitted, the default is \fBnone\fR.
 causes \fBincompress\fR to output a line reporting the compression
 format of \fIin-blend-file\fR.
 
+.TP
+\fB--inplace\fR
+specifies that the output file is to replace the input file. This is done
+safely, so in case of any errors the input file should remain untouched.
+This option requires the installation of the
+.UR https://github.com/ldo/python_linuxfs
+linuxfs
+.UE
+module.
+
 .SH EXAMPLES
 
 .RS
@@ -59,6 +69,12 @@ is uncompressed.
 
 Copies \fBin.blend\fR to \fBout.blend\fR, ensuring that the output
 is compressed in GZip format.
+
+.RS
+\fBincompress --compression=zstd --inplace file.blend\fR
+.RE
+
+Ensures that \fBfile.blend\fR is compressed in Zstd format.
 
 .RS
 \fBincompress --info in.blend\fR

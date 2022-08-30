@@ -4,11 +4,12 @@
 # the various available compressed formats, as well as
 # no compression at all.
 #
-# Copyright 2021 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
+# Copyright 2021-2022 by Lawrence D'Oliveiro <ldo@geek-central.gen.nz>.
 # Licensed under CC-BY-SA <http://creativecommons.org/licenses/by-sa/4.0/>.
 #-
 
 import sys
+import os
 import enum
 import struct
 import getopt
@@ -17,6 +18,11 @@ try :
     import zstd # get from <https://github.com/sergey-dryabzhinsky/python-zstd>
 except ImportError :
     zstd = None
+#end try
+try :
+    import linuxfs as lx # get from <https://github.com/ldo/python_linuxfs>
+except ImportError :
+    lx = None
 #end try
 
 #+
@@ -302,11 +308,12 @@ class COMPRESSION(enum.Enum) :
 io_blocksize = 8192
 out_compression = COMPRESSION.NONE
 show_info = False
+in_place = False
 opts, args = getopt.getopt \
   (
     sys.argv[1:],
     "",
-    ("compression=", "info"),
+    ("compression=", "info", "inplace"),
   )
 for keyword, value in opts :
     if keyword == "--compression" :
@@ -318,10 +325,18 @@ for keyword, value in opts :
         #end if
     elif keyword == "--info" :
         show_info = True
+    elif keyword == "--inplace" :
+        if lx == None :
+            raise getopt.GetoptError("--inplace option requires linuxfs")
+        #end if
+        in_place = True
     #end if
 #end for
 if len(args) not in (1, 2) :
     raise getopt.GetoptError("usage: %s «inblendfile» [«outblendfile»]" % sys.argv[0])
+#end if
+if in_place and len(args) != 1 :
+    raise getopt.GetoptError("no outputfile for --inplace")
 #end if
 infilename = args[0]
 if len(args) > 1 :
@@ -370,14 +385,32 @@ if infile.read(len(blender_sig)) != blender_sig :
 if show_info :
     sys.stderr.write("%s uses “%s” compression\n" % (infilename, in_compression.name))
 #end if
-if outfilename != None :
+if in_place or outfilename != None :
     if out_compression.wrap == None :
         raise RuntimeError \
           (
             "%s compression requested, but compression wrapper is not available" % out_compression.name
           )
     #end if
-    outfile = out_compression.wrap(open(outfilename, "wb"), True)
+    if in_place :
+        outfd = lx.open_at \
+          (
+            dirfd = lx.AT_FDCWD,
+            pathname = os.path.split(os.path.abspath(infilename))[0],
+            flags = os.O_WRONLY | os.O_TMPFILE,
+            mode = 0o777
+          )
+    else :
+        outfd = None
+    #end if
+    outfile = out_compression.wrap \
+      (
+        (
+            lambda : open(outfilename, "wb"),
+            lambda : os.fdopen(os.dup(outfd), "wb", closefd = True)
+        )[in_place](),
+        True
+      )
     # infile.seek(0) # zstd doesn’t allow seeking backwards
     outfile.write(blender_sig) # instead, write out what I have already read
     while True :
@@ -387,5 +420,12 @@ if outfilename != None :
         outfile.write(data)
     #end while
     outfile.close()
+    if in_place :
+        tempfilename = infilename + "-new"
+        lx.save_tmpfile(outfd, tempfilename)
+        lx.rename_at(lx.AT_FDCWD, tempfilename, lx.AT_FDCWD, infilename, lx.RENAME_EXCHANGE)
+        os.unlink(tempfilename)
+        os.close(outfd)
+    #end if
 #end if
 infile.close()
