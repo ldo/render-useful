@@ -392,40 +392,44 @@ if in_place or outfilename != None :
             "%s compression requested, but compression wrapper is not available" % out_compression.name
           )
     #end if
-    if in_place :
-        outfd = lx.open_at \
-          (
-            dirfd = lx.AT_FDCWD,
-            pathname = os.path.split(os.path.abspath(infilename))[0],
-            flags = os.O_WRONLY | os.O_TMPFILE,
-            mode = 0o777
-          )
+    if in_place and in_compression == out_compression :
+        sys.stderr.write("%s is already %s-compressed.\n" % (infilename, in_compression.name))
     else :
-        outfd = None
-    #end if
-    outfile = out_compression.wrap \
-      (
-        (
-            lambda : open(outfilename, "wb"),
-            lambda : os.fdopen(os.dup(outfd), "wb", closefd = True)
-        )[in_place](),
-        True
-      )
-    # infile.seek(0) # zstd doesn’t allow seeking backwards
-    outfile.write(blender_sig) # instead, write out what I have already read
-    while True :
-        data = infile.read(io_blocksize)
-        if len(data) == 0 :
-            break
-        outfile.write(data)
-    #end while
-    outfile.close()
-    if in_place :
-        tempfilename = infilename + "-new"
-        lx.save_tmpfile(outfd, tempfilename)
-        lx.rename_at(lx.AT_FDCWD, tempfilename, lx.AT_FDCWD, infilename, lx.RENAME_EXCHANGE)
-        os.unlink(tempfilename)
-        os.close(outfd)
+        if in_place :
+            outfd = lx.open_at \
+              (
+                dirfd = lx.AT_FDCWD,
+                pathname = os.path.split(os.path.abspath(infilename))[0],
+                flags = os.O_WRONLY | os.O_TMPFILE,
+                mode = 0o777
+              )
+        else :
+            outfd = None
+        #end if
+        outfile = out_compression.wrap \
+          (
+            (
+                lambda : open(outfilename, "wb"),
+                lambda : os.fdopen(os.dup(outfd), "wb", closefd = True)
+            )[in_place](),
+            True
+          )
+        # infile.seek(0) # zstd doesn’t allow seeking backwards
+        outfile.write(blender_sig) # instead, write out what I have already read
+        while True :
+            data = infile.read(io_blocksize)
+            if len(data) == 0 :
+                break
+            outfile.write(data)
+        #end while
+        outfile.close()
+        if in_place :
+            tempfilename = infilename + "-new"
+            lx.save_tmpfile(outfd, tempfilename)
+            lx.rename_at(lx.AT_FDCWD, tempfilename, lx.AT_FDCWD, infilename, lx.RENAME_EXCHANGE)
+            os.unlink(tempfilename)
+            os.close(outfd)
+        #end if
     #end if
 #end if
 infile.close()
