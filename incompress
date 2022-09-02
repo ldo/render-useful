@@ -396,21 +396,15 @@ if in_place or outfilename != None :
         sys.stderr.write("%s is already %s-compressed.\n" % (infilename, in_compression.name))
     else :
         if in_place :
-            outfd = lx.open_at \
-              (
-                dirfd = lx.AT_FDCWD,
-                pathname = os.path.split(os.path.abspath(infilename))[0],
-                flags = os.O_WRONLY | os.O_TMPFILE,
-                mode = 0o777
-              )
+            outsafe = lx.TentativeFile(pathname = infilename)
         else :
-            outfd = None
+            outsafe = None
         #end if
         outfile = out_compression.wrap \
           (
             (
                 lambda : open(outfilename, "wb"),
-                lambda : os.fdopen(os.dup(outfd), "wb", closefd = True)
+                lambda : outsafe.open("wb"),
             )[in_place](),
             True
           )
@@ -424,11 +418,7 @@ if in_place or outfilename != None :
         #end while
         outfile.close()
         if in_place :
-            tempfilename = infilename + "-new"
-            lx.save_tmpfile(outfd, tempfilename)
-            lx.rename_at(lx.AT_FDCWD, tempfilename, lx.AT_FDCWD, infilename, lx.RENAME_EXCHANGE)
-            os.unlink(tempfilename)
-            os.close(outfd)
+            outsafe.save()
         #end if
     #end if
 #end if
