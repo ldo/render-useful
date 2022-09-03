@@ -309,11 +309,12 @@ io_blocksize = 8192
 out_compression = COMPRESSION.NONE
 show_info = False
 in_place = False
+keep_times = False
 opts, args = getopt.getopt \
   (
     sys.argv[1:],
     "",
-    ("compression=", "info", "inplace"),
+    ("compression=", "info", "inplace", "keep-times"),
   )
 for keyword, value in opts :
     if keyword == "--compression" :
@@ -330,6 +331,8 @@ for keyword, value in opts :
             raise getopt.GetoptError("--inplace option requires linuxfs")
         #end if
         in_place = True
+    elif keyword == "--keep-times" :
+        keep_times = True
     #end if
 #end for
 if len(args) not in (1, 2) :
@@ -395,6 +398,9 @@ if in_place or outfilename != None :
     if in_place and in_compression == out_compression :
         sys.stderr.write("%s is already %s-compressed.\n" % (infilename, in_compression.name))
     else :
+        if keep_times :
+            info = os.lstat(infilename)
+        #end if
         if in_place :
             outsafe = lx.TentativeFile(pathname = infilename)
         else :
@@ -419,6 +425,9 @@ if in_place or outfilename != None :
         outfile.close()
         if in_place :
             outsafe.save()
+        #end if
+        if keep_times :
+            os.utime((outfilename, infilename)[in_place], ns = (info.st_atime_ns, info.st_mtime_ns))
         #end if
     #end if
 #end if
