@@ -68,11 +68,19 @@ class RepoContext :
         return self.blendfilename + ".git"
     #end get_repo_name
 
-    @property
-    def repo_exists(self) :
+    def ensure_repo_existence(self, must_exist) :
+        if os.path.isdir(self.get_repo_name()) :
+            if not must_exist :
+                raise getopt.GetoptError("repo already exists for %s" % repr(self.blendfilename))
+            #end if
+        else :
+            if must_exist :
+                raise getopt.GetoptError("no repo exists for %s" % repr(self.blendfilename))
+            #end if
+        #end if
         return \
-            os.path.isdir(self.get_repo_name())
-    #end repo_exists
+            self
+    #end ensure_repo_existence
 
     def get_workdir_name(self) :
         "name to use for a temporary source tree directory for making commits to the repo."
@@ -237,10 +245,7 @@ def cmd_help(args, opts) :
 
 def cmd_init(args, opts) :
     "initializes a Git repo for saving history for the specified .blend file."
-    ctx = RepoContext(args[0])
-    if ctx.repo_exists :
-        raise getopt.GetoptError("repo already exists for %s" % repr(ctx.blendfilename))
-    #end if
+    ctx = RepoContext(args[0]).ensure_repo_existence(False)
     description = opts.get("description")
     ctx.setup_workdir()
     ctx.do_git(("init",), saving = True)
@@ -256,10 +261,7 @@ def cmd_init(args, opts) :
 
 def cmd_list(args, opts) :
     "lists the saved history for the specified .blend file."
-    ctx = RepoContext(args[0])
-    if not ctx.repo_exists :
-        raise getopt.GetoptError("no repo exists for %s" % repr(ctx.blendfilename))
-    #end if
+    ctx = RepoContext(args[0]).ensure_repo_existence(True)
     sys.stdout.write("History for %s:\n" % ctx.blendfilename)
     got_something = False
     for line in ctx.do_git(("log", "--format=%H %ct %s")).decode("utf-8").split("\n") :
@@ -279,10 +281,7 @@ def cmd_list(args, opts) :
 
 def cmd_log(args, opts) :
     "lists the commit history for the specified .blend file."
-    ctx = RepoContext(args[0])
-    if not ctx.repo_exists :
-        raise getopt.GetoptError("no repo exists for %s" % repr(ctx.blendfilename))
-    #end if
+    ctx = RepoContext(args[0]).ensure_repo_existence(True)
     git_opts = ["log"]
     for key in ("format", "raw") :
         if key in opts :
@@ -297,12 +296,9 @@ def cmd_log(args, opts) :
 
 def cmd_commit(args, opts) :
     "adds a commit to the repo for the .blend file and its associated dependencies."
-    ctx = RepoContext(opts.get("name", args[0]))
     blendfilename = args[0]
+    ctx = RepoContext(opts.get("name", blendfilename)).ensure_repo_existence(True)
     blender = opts.get("blender")
-    if not ctx.repo_exists :
-        raise getopt.GetoptError("repo does not exist for %s" % repr(ctx.blendfilename))
-    #end if
     message = args[1]
     if len(message.strip()) == 0 :
         raise getopt.GetoptError("empty commit message")
@@ -345,10 +341,7 @@ def cmd_commit(args, opts) :
 #end cmd_commit
 
 def cmd_uncommit(args, opts) :
-    ctx = RepoContext(args[0])
-    if not ctx.repo_exists :
-        raise getopt.GetoptError("repo does not exist for %s" % repr(ctx.blendfilename))
-    #end if
+    ctx = RepoContext(args[0]).ensure_repo_existence(True)
     ctx.do_git(("reset", "--soft", "HEAD^"))
     ctx.do_git_direct(("show", "--raw", "HEAD"))
 #end cmd_uncommit
@@ -356,10 +349,7 @@ def cmd_uncommit(args, opts) :
 def cmd_checkout(args, opts) :
     "checks out a previously-committed revision of the .blend file and its associated" \
     " dependencies."
-    ctx = RepoContext(args[0])
-    if not ctx.repo_exists :
-        raise getopt.GetoptError("repo does not exist for %s" % repr(ctx.blendfilename))
-    #end if
+    ctx = RepoContext(args[0]).ensure_repo_existence(True)
     commit = args[1]
     ctx.do_git(("checkout", "-f", commit, "."))
     sys.stdout.write("checked out revision %s for %s.\n" % (commit, ctx.blendfilename))
