@@ -1,4 +1,4 @@
-.TH "RENDER-BATCH" "1" "2021-09-03" "Geek Central" "Render-Useful Collection"
+.TH "RENDER-BATCH" "1" "2023-05-01" "Geek Central" "Render-Useful Collection"
 
 .SH NAME
 render\-batch \- batch-mode rendering of
@@ -54,6 +54,17 @@ the name “blender” in your
 specifies the name of the camera to use.
 
 .TP
+.B \-\-collections=«collections»
+specifies the enabling/disabling of specified scene collections.
+.B «collections»
+consists of a comma-separated list of one or more
+collection names, optionally preceded by “+” or “\-”. “+” indicates to
+enable the specified collections (in addition to those already
+enabled); “\-” indicates to disable the specified collections, and the
+absence of either means the specified collections should be enabled
+and all others disabled.
+
+.TP
 .B \-\-crash\-protect
 spawns a separate child process to do the rendering, with automatic
 resume after a crash or certain rendering misbehaviour. Currently only
@@ -70,57 +81,6 @@ numbers to use in names of output frame files. If omitted, defaults
 to 4. The generated names will include leading zeroes as necessary to
 make up this number of digits, eg
 .RB “ 0001.png "”, “" 0002.png "” etc."
-
-.PP
-.B \-\-preexec=«script»
-.RS
-executes the specified Python code prior to the rendering. May be
-specified multiple times; the values are concatenated in sequence,
-separated by newlines.
-
-Note that, to avoid clashes with the namespace of the \fBrender-batch\fR
-program itself, your script is executed within the global context of
-a special module object called \fBuserdefs\fR. Initially this module
-is empty apart from an automatic import of Blender’s \fBbpy\fR Python
-API module, and the \fBexec_text\fR function (described below); any
-globals you define will be kept here for subsequent \fB\-\-preexec\fR
-calls.
-
-If you need more than a few lines of custom script, it can be more
-convenient to save them in a text block in the Blender document.
-You could execute this with a statement like
-
-.RS
-.B \-\-preexec="exec(bpy.data.texts[\e"my_custom_script\e"].as_string())" \e
-.RE
-
-but a slightly more convenient alternative is to use \fBexec_text\fR,
-e.g.:
-
-.RS
-.B \-\-preexec="exec_text(\e"my_custom_script\e")"
-.RE
-
-This function can also be called as, e.g.:
-
-.RS
-.B \-\-preexec="exec_text(\e"my_custom_script\e", \e"my_mod\e")"
-.RE
-
-This way, your definitions are put into a new module named
-\fBmy_mod\fR, which becomes a submodule of \fBuserdefs\fR.
-
-The \fBexec_text\fR function is invoked as
-
-.RS
-\fBexec_text(\fItext_block_name\fB\fI[\fB, \fImodule_name]\fB)\fR
-.RE
-
-where \fItext_block_name\fR is the name of the text block to execute,
-and \fI[module_name]\fR is the name to give a new module containing
-any definitions it creates; if omitted, the definitions go straight
-into \fBuserdefs\fR.
-.RE
 
 .TP
 .BR \-\-existing=error | overwrite | replace\-all | skip
@@ -186,44 +146,6 @@ are synonymous; either one may be used to specify a single frame
 or a range.
 
 .TP
-.B \-\-collections=«collections»
-specifies the enabling/disabling of specified scene collections.
-.B «collections»
-consists of a comma-separated list of one or more
-collection names, optionally preceded by “+” or “\-”. “+” indicates to
-enable the specified collections (in addition to those already
-enabled); “\-” indicates to disable the specified collections, and the
-absence of either means the specified collections should be enabled
-and all others disabled.
-
-.TP
-.B \-\-renumber=«renumber»
-for an animation, the starting number to use to generate names for
-the output frame files. If omitted, defaults to the frame start
-number.
-
-.TP
-.B \-\-stereo[=«stereo-parms»]
-.RS
-specifies that a stereoscopic image is to be rendered, using
-Blender’s Views feature. If specified,
-.B «stereo-parms»
-takes the form
-
-.RS
-.BR «keyword»=«value» [ :«keyword»=«value» ...]
-.RE
-
-where the valid
-.BR «keyword» s
-are “convergence_distance”, “convergence_mode”, “interocular_distance” and
-“pivot”, being the corresponding fields of a CameraStereoData object.
-
-The output file will contain the two eye images side-by-side, the image
-for the right eye on the left and vice versa, for viewing as “cross-eyed” stereo.
-.RE
-
-.TP
 .B \-\-only\-view\-layer=«view-layer-name»
 only renders the specified view layer. Also turns off compositing.
 
@@ -240,6 +162,57 @@ is specified,
 otherwise the default is the setting in the
 .B .blend
 file.
+
+.PP
+.B \-\-preexec=«script»
+.RS
+executes the specified Python code prior to the rendering. May be
+specified multiple times; the values are concatenated in sequence,
+separated by newlines.
+
+Note that, to avoid clashes with the namespace of the \fBrender-batch\fR
+program itself, your script is executed within the global context of
+a special module object called \fBuserdefs\fR. Initially this module
+is empty apart from an automatic import of Blender’s \fBbpy\fR Python
+API module, and the \fBexec_text\fR function (described below); any
+globals you define will be kept here for subsequent \fB\-\-preexec\fR
+calls.
+
+If you need more than a few lines of custom script, it can be more
+convenient to save them in a text block in the Blender document.
+You could execute this with a statement like
+
+.RS
+.B \-\-preexec="exec(bpy.data.texts[\e"my_custom_script\e"].as_string())" \e
+.RE
+
+but a slightly more convenient alternative is to use \fBexec_text\fR,
+e.g.:
+
+.RS
+.B \-\-preexec="exec_text(\e"my_custom_script\e")"
+.RE
+
+This function can also be called as, e.g.:
+
+.RS
+.B \-\-preexec="exec_text(\e"my_custom_script\e", \e"my_mod\e")"
+.RE
+
+This way, your definitions are put into a new module named
+\fBmy_mod\fR, which becomes a submodule of \fBuserdefs\fR.
+
+The \fBexec_text\fR function is invoked as
+
+.RS
+\fBexec_text(\fItext_block_name\fB\fI[\fB, \fImodule_name]\fB)\fR
+.RE
+
+where \fItext_block_name\fR is the name of the text block to execute,
+and \fI[module_name]\fR is the name to give a new module containing
+any definitions it creates; if omitted, the definitions go straight
+into \fBuserdefs\fR.
+.RE
 
 .TP
 .B \-\-renderer=«renderer»
@@ -262,12 +235,39 @@ dimension for the render, and the other dimension is calculated so as
 to maintain the existing aspect ratio.
 
 .TP
+.B \-\-renumber=«renumber»
+for an animation, the starting number to use to generate names for
+the output frame files. If omitted, defaults to the frame start
+number.
+
+.TP
 .B \-\-samples=«samples»
 the number of samples per pixel (Cycles or Eevee renderers).
 
 .TP
 .B \-\-scene=«scene»
 specifies the scene to render.
+
+.TP
+.B \-\-stereo[=«stereo-parms»]
+.RS
+specifies that a stereoscopic image is to be rendered, using
+Blender’s Views feature. If specified,
+.B «stereo-parms»
+takes the form
+
+.RS
+.BR «keyword»=«value» [ :«keyword»=«value» ...]
+.RE
+
+where the valid
+.BR «keyword» s
+are “convergence_distance”, “convergence_mode”, “interocular_distance” and
+“pivot”, being the corresponding fields of a CameraStereoData object.
+
+The output file will contain the two eye images side-by-side, the image
+for the right eye on the left and vice versa, for viewing as “cross-eyed” stereo.
+.RE
 
 .TP
 .B \-\-threads=«n»
