@@ -286,8 +286,11 @@ alters the rendered frame rate to be
 .RB ( «new»
 ÷
 .BR «old» )
-× the existing frame rate. If you don’t specify explicit start and end frame
-numbers, then the corresponding values set in the
+× the existing frame rate, where \fB«old»\fR and \fB«new»\fR are positive integers.
+Note that, while the computed frame rate may have a fractional part,
+rendered frame numbers are always rounded to the nearest integer.
+If you don’t specify explicit start and end frame numbers, then
+the corresponding values set in the
 .B .blend
 file are
 automatically remapped to get as close as possible to the same start
