@@ -1,4 +1,5 @@
-.TH "RENDER-BATCH" "1" "2023-05-01" "Geek Central" "Render-Useful Collection"
+'\" t
+.TH "RENDER-BATCH" "1" "2023-05-03" "Geek Central" "Render-Useful Collection"
 
 .SH NAME
 render\-batch \- batch-mode rendering of
@@ -262,11 +263,29 @@ takes the form
 
 where the valid
 .BR «keyword» s
-are “convergence_distance”, “convergence_mode”, “interocular_distance” and
-“pivot”, being the corresponding fields of a CameraStereoData object.
+are
 
-The output file will contain the two eye images side-by-side, the image
-for the right eye on the left and vice versa, for viewing as “cross-eyed” stereo.
+.RS
+.TS
+tab(|) allbox;
+c|c|c|c.
+full name|alt name(s)|values|default
+_
+\fBconvergence_distance\fR|\fBcdist\fR|number|document setting
+\fBconvergence_mode\fR|\fBcmode\fR|\fBOFFAXIS\fR\[ba]\fBPARALLEL\fR\[ba]\fBTOE\fR|document setting
+\fBinterocular_distance\fR|\fBidist\fR, \fBiod\fR|number|document setting
+\fBpivot\fR||\fBCENTER\fR\[ba]\fBLEFT\fR\[ba]\fBRIGHT\fR|document setting
+\fBside\fR||\fBLEFT\fR\[ba]\fBRIGHT\fR|both sides
+.TE
+.RE
+
+Note the shorter alternate names which may be used instead of the full names.
+The full names may also be written with hyphens in place of the underscores.
+
+If the \fBside\fR is not specified, then the output file will contain the two
+eye images side-by-side, the image for the right eye on the left and vice
+versa, for viewing as “cross-eyed” stereo. If the \fBside\fR is specified,
+then only the image for that eye is generated.
 .RE
 
 .TP
