@@ -15,7 +15,9 @@ import struct
 import getopt
 import gzip
 try :
-    import zstd # get from <https://github.com/sergey-dryabzhinsky/python-zstd>
+    import zstd
+      # get from python3-zstd package, else from
+      # <https://github.com/sergey-dryabzhinsky/python-zstd>
 except ImportError :
     zstd = None
 #end try
