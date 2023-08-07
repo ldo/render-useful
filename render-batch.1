@@ -1,5 +1,5 @@
 '\" t
-.TH "RENDER-BATCH" "1" "2023-05-03" "Geek Central" "Render-Useful Collection"
+.TH "RENDER-BATCH" "1" "2023-08-07" "Geek Central" "Render-Useful Collection"
 
 .SH NAME
 render\-batch \- batch-mode rendering of
@@ -98,15 +98,15 @@ specifies what to do if an output image file already exists:
 \-\- only for animations: replaces any existing output directory (and its contents)
 with the new frames, but only on successful completion of the entire render. Frames
 are initially rendered to a temporary directory named
-.B «output-file/dir»\-new,
+.B «output-file/dir»\-tmp,
 and when all frames are done, the existing
 .B «output-file/dir»
 is deleted and
-.B «output-file/dir»\-new,
+.B «output-file/dir»\-tmp,
 renamed to
 .BR «output-file/dir» .
 If
-.B «output-file/dir»\-new
+.B «output-file/dir»\-tmp
 already exists (perhaps as a result of a previous crash), then any existing
 frames in it are skipped and rendering continues with frames not yet done.
 .TP
