@@ -1,13 +1,4 @@
-This repo contains a number of scripts for doing useful things with
-[Blender](https://www.blender.org/), such as batch rendering or
-obtaining information about dependencies of `.blend` files.
-
-Each script either has an explanation of its usage in its header,
-or has an accompanying man-page file.
-
-The scripts are written in Python, most of them enclosed in a Bash
-wrapper that launches Blender and feeds it the Python script for
-execution within the application.
-
-Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
-2021 May 14
+This project is no longer being maintained on GitHub.
+Look for it at one of
+* gitlab: https://gitlab.com/ldo/render-useful
+* bitbucket: https://bitbucket.org/ldo17/render-useful
